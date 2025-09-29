@@ -1,0 +1,56 @@
+name: Manual Terminal
+
+on:
+  workflow_dispatch:
+    inputs:
+      python-version:
+        description: "Python version to use"
+        required: false
+        default: "3.11"
+      cmd:
+        description: "Shell command to run (runs in repo root)"
+        required: false
+        default: "python -m unittest discover -s tests -p 'test_*.py' -v"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ github.event.inputs.python-version }}
+
+      - name: Prepare environment
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # Optional useful tools; keep lightweight
+          python -m pip install ruff flake8 build
+
+      - name: Show environment
+        run: |
+          python --version
+          pip --version
+          ls -la
+
+      - name: Run command
+        id: run_cmd
+        shell: bash
+        run: |
+          echo "Executing command:"
+          echo "${{ github.event.inputs.cmd }}"
+          echo "----- BEGIN OUTPUT -----"
+          set -o pipefail
+          bash -lc "${{ github.event.inputs.cmd }}" 2>&1 | tee terminal_output.txt
+          echo "----- END OUTPUT -----"
+
+      - name: Upload terminal output
+        uses: actions/upload-artifact@v4
+        with:
+          name: terminal-output
+          path: terminal_output.txt
