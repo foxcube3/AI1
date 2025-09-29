@@ -207,6 +207,9 @@ class Chatbot:
         ban_immediate_repeat: bool = False,
         require_alpha_start: bool = False,
         min_token_len: int = 0,
+        repeat_window: int = 0,
+        max_token_repeat: int = 0,
+        allow_alpha_only: bool = False,
     ) -> List[str]:
         tokens = list(prompt_tokens)
         V = len(self.inv_vocab)
@@ -257,6 +260,35 @@ class Chatbot:
                 if s > 0.0:
                     probs = [p / s for p in probs]
                 # If s == 0.0, keep original probs (fallback to constraints check below)
+
+            # Alphabetic-only constraint (optional hard filter)
+            if allow_alpha_only:
+                mask_alpha = [1.0] * len(probs)
+                for i in range(len(probs)):
+                    t = self.inv_vocab.get(i, "<unk>")
+                    if not t.isalpha():
+                        mask_alpha[i] = 0.0
+                probs = [p * m for p, m in zip(probs, mask_alpha)]
+                s = sum(probs)
+                if s > 0.0:
+                    probs = [p / s for p in probs]
+
+            # Frequency penalty within recent window to discourage repeated tokens
+            if repeat_window and repeat_window > 0 and max_token_repeat and max_token_repeat > 0:
+                # Count occurrences in the last repeat_window generated tokens (excluding prompt)
+                recent = tokens[-min(len(tokens), repeat_window):]
+                freq = {}
+                for t in recent:
+                    freq[t] = freq.get(t, 0) + 1
+                penalized = list(probs)
+                for i in range(len(penalized)):
+                    tok = self.inv_vocab.get(i, "<unk>")
+                    c = freq.get(tok, 0)
+                    if c >= max_token_repeat:
+                        penalized[i] *= 0.1  # downweight heavily
+                s2 = sum(penalized)
+                if s2 > 0.0:
+                    probs = [x / s2 for x in penalized]
 
             # Choose a candidate id
             def pick_candidate() -> int:
@@ -351,6 +383,11 @@ class Chatbot:
         min_prob: float = 0.0,
         no_repeat_ngram_size: int = 0,
         ban_immediate_repeat: bool = False,
+        allow_alpha_only: bool = False,
+        repeat_window: int = 0,
+        max_token_repeat: int = 0,
+        require_alpha_start: bool = False,
+        min_token_len: int = 0,
     ) -> str:
         prompt_text = " ".join(history + [f"User: {user_message}", "Assistant:"])
         prompt_toks = self.tok.encode(prompt_text)
@@ -369,6 +406,11 @@ class Chatbot:
             min_prob=min_prob,
             no_repeat_ngram_size=no_repeat_ngram_size,
             ban_immediate_repeat=ban_immediate_repeat,
+            require_alpha_start=require_alpha_start,
+            min_token_len=min_token_len,
+            repeat_window=repeat_window,
+            max_token_repeat=max_token_repeat,
+            allow_alpha_only=allow_alpha_only,
         )
         new_toks = out_tokens[len(prompt_toks):]
         reply = self.tok.decode(new_toks).strip()
@@ -407,9 +449,13 @@ def main() -> None:
     # Repetition controls
     parser.add_argument("--no_repeat_ngram_size", type=int, default=0, help="Disallow repeating contiguous n-grams of this size (0 disables).")
     parser.add_argument("--ban_immediate_repeat", action="store_true", help="Disallow immediately repeating the last generated token.")
+    parser.add_argument("--repeat_window", type=int, default=0, help="Window size (in tokens) to track repetition frequency (0 disables).")
+    parser.add_argument("--max_token_repeat", type=int, default=0, help="Maximum allowed repeats within the repeat window (0 disables).")
     # Start/length constraints
     parser.add_argument("--require_alpha_start", action="store_true", help="Require the first generated token to start with a letter.")
     parser.add_argument("--min_token_len", type=int, default=0, help="Minimum token length for generated tokens (0 disables).")
+    # Strict token set constraint
+    parser.add_argument("--allow_alpha_only", action="store_true", help="Mask out non-alphabetic tokens during generation.")
     args = parser.parse_args()
 
     # Apply decoding presets
@@ -433,6 +479,11 @@ def main() -> None:
         args.require_alpha_start = True
         if args.min_token_len <= 0:
             args.min_token_len = 2
+        # Frequency penalty in recent window
+        if args.repeat_window <= 0:
+            args.repeat_window = 32
+        if args.max_token_repeat <= 0:
+            args.max_token_repeat = 2
     elif args.preset == "balanced":
         args.greedy = False
         args.temperature = 0.9
@@ -453,6 +504,10 @@ def main() -> None:
         args.require_alpha_start = True
         if args.min_token_len <= 0:
             args.min_token_len = 2
+        if args.repeat_window <= 0:
+            args.repeat_window = 32
+        if args.max_token_repeat <= 0:
+            args.max_token_repeat = 2
     elif args.preset == "creative":
         args.greedy = False
         args.temperature = 1.1
@@ -464,6 +519,10 @@ def main() -> None:
         # Optional light repetition control
         if args.no_repeat_ngram_size <= 0:
             args.no_repeat_ngram_size = 2
+        if args.repeat_window <= 0:
+            args.repeat_window = 16
+        if args.max_token_repeat <= 0:
+            args.max_token_repeat = 3
 
     bot = Chatbot(
         merges_path=args.merges,
@@ -507,6 +566,11 @@ def main() -> None:
                 min_prob=args.min_prob,
                 no_repeat_ngram_size=args.no_repeat_ngram_size,
                 ban_immediate_repeat=args.ban_immediate_repeat,
+                allow_alpha_only=args.allow_alpha_only,
+                repeat_window=args.repeat_window,
+                max_token_repeat=args.max_token_repeat,
+                require_alpha_start=args.require_alpha_start,
+                min_token_len=args.min_token_len,
             )
             print(f"Assistant: {reply}")
             history.append(f"User: {user}")
