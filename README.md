@@ -6,6 +6,7 @@ Table of Contents
 - [Features](#features)
 - [Repository contents](#repository-contents)
 - [Requirements](#requirements)
+- [Installation](#installation)
 - [Quick start](#quick-start)
 - [Examples](#examples)
   - [Post-processing (inference) — quick reference](#post-processing-inference-quick-reference)
@@ -38,6 +39,9 @@ Table of Contents
     - [add_to](#learnedpositionalembedding-add-to)
   - [Inference Post-processing](#api-inference-post-processing)
 - [Development](#development)
+  - [Testing](#testing)
+  - [Linting](#linting)
+  - [Building and publishing](#building-and-publishing)
 - [CI](#ci)
 - [License](#license)
 
@@ -86,6 +90,7 @@ Repository contents
 - examples/example_embed.py — Load tokenizer + vocab, build embedding layer, and embed text.
 - examples/example_embed_with_pe.py — Embed text and add sinusoidal positional encodings.
 - examples/example_embed_with_learned_pe.py — Embed text and add learned positional embeddings.
+- examples/example_learned_pe_persist.py — Demonstrate saving/loading learned positional embedding weights.
 - examples/example_transformer_encoder.py — End-to-end example running a Transformer encoder on embedded tokens.
 - examples/train_and_embed.py — One-shot pipeline: train BPE then embed text.
 - examples/train_next_token_head.py — Train a next-token linear head on top of the frozen Transformer encoder.
@@ -98,12 +103,25 @@ Repository contents
 - tests/test_embedding.py — Unit tests for EmbeddingLayer.
 - tests/test_positional.py — Unit tests for positional encoding.
 - tests/test_transformer.py — Unit tests for Transformer blocks and masks.
+- tests/test_next_token_pipeline.py — Smoke test for training and inference pipeline.
+- tests/test_train_then_chatbot.py — Smoke test for single-turn chatbot training + run.
 - pyproject.toml — Packaging metadata and lint configuration (ruff + flake8).
-- .github/workflows/python-tests.yml — CI workflow.
+- .github/workflows/python-tests.yml — Default CI workflow.
+- .github/workflows/manual-terminal.yml — On-demand terminal runner workflow.
+- .github/workflows/manual-ci.yml — On-demand full CI workflow.
 
 <a id="requirements"></a>
 Requirements
 - Python 3.8+ (no external dependencies)
+
+<a id="installation"></a>
+Installation
+- From PyPI:
+  - pip install bpe-tokenizer-embedding
+- From source (editable):
+  - git clone https://github.com/OWNER/REPO.git
+  - cd REPO
+  - pip install -e .
 
 <a id="quick-start"></a>
 Quick start
@@ -336,8 +354,37 @@ API Reference — Inference Post-processing
     - Zeros out probabilities below threshold, then renormalizes.
 - Notes:
   - Token names must match entries in the vocab file used by the embedding layer.
-  - Unknown tokens map to the &lt;unk&gt; id; banning &lt;unk&gt; is allowed.
-  - Renormalization occurs only if total remaining mass &gt; 0; otherwise the raw distribution is returned unchanged.
+  - Unknown tokens map to the <unk> id; banning <unk> is allowed.
+  - Renormalization occurs only if total remaining mass > 0; otherwise the raw distribution is returned unchanged.
+
+<a id="development"></a>
+Development
+- Create and activate a virtual environment (recommended).
+- Install in editable mode:
+  - pip install -e .
+- Install optional dev tools:
+  - pip install ruff flake8 pytest build
+
+<a id="testing"></a>
+Testing
+- Run the unittest suite:
+  - python -m unittest discover tests -v
+- Or with pytest (if installed):
+  - python -m pytest -q
+
+<a id="linting"></a>
+Linting
+- Ruff (configured in pyproject.toml):
+  - ruff check .
+- Flake8:
+  - flake8 .
+
+<a id="building-and-publishing"></a>
+Building and publishing
+- Build wheels/sdist (requires python-build):
+  - python -m build
+- Publish to PyPI (requires twine and appropriate credentials):
+  - twine upload dist/*
 
 <a id="ci"></a>
 CI
@@ -384,3 +431,7 @@ Quick links
 - Default CI: [python-tests.yml](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml)
 - Manual Terminal: [manual-terminal.yml](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml)
 - Manual CI: [manual-ci.yml](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml)
+
+<a id="license"></a>
+License
+- MIT License. See the LICENSE file for details.
