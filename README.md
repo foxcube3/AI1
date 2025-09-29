@@ -9,6 +9,7 @@ Table of Contents
 - [Quick start](#quick-start)
 - [Examples](#examples)
   - [Post-processing (inference) — quick reference](#post-processing-inference-quick-reference)
+  - [Chatbot usage](#chatbot-usage)
 - [Simple training (next-token head)](#simple-training-next-token-head)
 - [API Reference](#api-reference)
   - [BPETokenizer](#bpetokenizer)
@@ -195,6 +196,29 @@ Examples
 - Console chatbot (uses trained head): examples/chatbot.py
   - Train a head first (see examples/train_next_token_head.py), then:
     - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20
+
+<a id="chatbot-usage"></a>
+Chatbot usage
+- Prerequisite: Train a next-token head and save it to head.json (see examples/train_next_token_head.py).
+- Basic command:
+  - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20
+- Decoding modes:
+  - Greedy (deterministic): add --greedy to pick the argmax at each step.
+  - Sampling (default): temperature + top_k control diversity and candidate set.
+- Useful flags:
+  - --max_new_tokens N  : Maximum tokens per assistant reply.
+  - --temperature T     : Softmax temperature (lower -> more deterministic).
+  - --top_k K           : Sample from the top-K tokens.
+  - --greedy            : Use greedy decoding (ignores top_k/temperature).
+  - --stop_token "<eos>": Stop generation when the token is produced.
+  - --system "TEXT"     : Add a system prompt to guide behavior.
+- Examples:
+  - Greedy decoding:
+    - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --greedy --max_new_tokens 32
+  - Use a stop token:
+    - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --stop_token "<eos>" --max_new_tokens 64
+  - Add a system prompt:
+    - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --system "You are a helpful assistant." --max_new_tokens 48
 
 Masking utilities (quick snippet)
 ```python
