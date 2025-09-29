@@ -21,7 +21,7 @@ classifiers = [
 
 # We ship standalone modules rather than a package directory
 [tool.setuptools]
-py-modules = ["bpe_tokenizer", "embedding", "positional_encoding"]
+py-modules = ["bpe_tokenizer", "embedding", "positional_encoding", "transformer_blocks"]
 
 [project.urls]
 Homepage = "https://github.com/OWNER/REPO"
