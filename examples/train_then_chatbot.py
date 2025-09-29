@@ -87,9 +87,11 @@ def main() -> None:
     parser.add_argument("--max_new_tokens", type=int, default=32, help="Generation length per turn.")
     parser.add_argument("--temperature", type=float, default=0.9, help="Softmax temperature.")
     parser.add_argument("--top_k", type=int, default=20, help="Top-k sampling.")
+    parser.add_argument("--top_p", type=float, default=0.0, help="Nucleus (top-p) sampling cutoff; 0 disables.")
     parser.add_argument("--stop_token", type=str, default="", help="Optional token that stops generation, e.g., '<eos>'.")
     parser.add_argument("--system", type=str, default="", help="Optional system prompt that prefixes the conversation.")
     parser.add_argument("--greedy", action="store_true", help="Use greedy decoding instead of sampling.")
+    parser.add_argument("--stream", action="store_true", help="Stream tokens as they are generated.")
     parser.add_argument(
         "--stdin",
         action="store_true",
@@ -278,6 +280,8 @@ def main() -> None:
             top_k=args.top_k,
             stop_token=stop_tok,
             greedy=args.greedy,
+            top_p=args.top_p,
+            stream=args.stream,
         )
         print(f"Assistant: {reply}")
         return
@@ -302,6 +306,8 @@ def main() -> None:
                 top_k=args.top_k,
                 stop_token=stop_tok,
                 greedy=args.greedy,
+                top_p=args.top_p,
+                stream=args.stream,
             )
             print(f"Assistant: {reply}")
             history.append(f"User: {user}")

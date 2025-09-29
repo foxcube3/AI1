@@ -230,6 +230,8 @@ Examples
 - Console chatbot (uses trained head): examples/chatbot.py
   - Train a head first (see examples/train_next_token_head.py), then:
     - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20
+  - With nucleus sampling (top-p) and streaming:
+    - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --top_p 0.9 --stream
 - Sequence generation (iterative decoding): examples/generate_sequence.py
   - Greedy:
     - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --greedy --max_new_tokens 16 --stop_token "<eos>"

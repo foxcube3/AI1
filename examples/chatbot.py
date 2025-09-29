@@ -49,7 +49,6 @@ def _sample_from_top_k(probs: Sequence[float], k: int, rng: random.Random) -> in
     mass = sum(probs[i] for i in idxs)
     if mass <= 0.0:
         return idxs[0]
-    # Renormalize over top-k
     renorm = [probs[i] / mass for i in idxs]
     r = rng.random()
     c = 0.0
@@ -58,6 +57,32 @@ def _sample_from_top_k(probs: Sequence[float], k: int, rng: random.Random) -> in
         if r <= c:
             return j
     return idxs[-1]
+
+
+def _sample_from_top_p(probs: Sequence[float], p: float, rng: random.Random) -> int:
+    V = len(probs)
+    if V == 0:
+        return 0
+    p = max(1e-6, min(float(p), 1.0))
+    idx_sorted = sorted(range(V), key=lambda i: probs[i], reverse=True)
+    nucleus: List[int] = []
+    acc = 0.0
+    for j in idx_sorted:
+        nucleus.append(j)
+        acc += probs[j]
+        if acc >= p:
+            break
+    mass = sum(probs[i] for i in nucleus)
+    if mass <= 0.0:
+        return nucleus[0]
+    renorm = [probs[i] / mass for i in nucleus]
+    r = rng.random()
+    c = 0.0
+    for j, q in zip(nucleus, renorm):
+        c += q
+        if r <= c:
+            return j
+    return nucleus[-1]
 
 
 class Chatbot:
@@ -73,7 +98,6 @@ class Chatbot:
         add_pe: bool,
         seed: int = 123,
     ) -> None:
-        # Load next-token head
         with open(head_path, "r", encoding="utf-8") as f:
             head = json.load(f)
         W_out = head["W_out"]
@@ -85,12 +109,10 @@ class Chatbot:
         self.W_out = W_out
         self.b_out = b_out
 
-        # Tokenizer + embedding
         self.tok = BPETokenizer()
         self.tok.load(merges_path, vocab_path)
         self.emb = EmbeddingLayer.from_vocab_file(vocab_path, dim=dim, seed=42)
 
-        # Encoder
         self.encoder = TransformerEncoder(
             num_layers=layers,
             dim=dim,
@@ -100,7 +122,6 @@ class Chatbot:
         )
         self.pe = SinusoidalPositionalEncoding(dim=dim) if add_pe else None
 
-        # Id->token convenience
         self.inv_vocab = {i: t for t, i in self.emb.token_to_id.items()}
         if self.emb.unk_id not in self.inv_vocab:
             self.inv_vocab[self.emb.unk_id] = "<unk>"
@@ -132,20 +153,33 @@ class Chatbot:
         max_new_tokens: int = 32,
         temperature: float = 0.9,
         top_k: int = 20,
+        top_p: float = 0.0,
         stop_token: Optional[str] = None,
         greedy: bool = False,
+        stream: bool = False,
     ) -> List[str]:
         tokens = list(prompt_tokens)
         V = len(self.inv_vocab)
+
+        if stream:
+            # Print the decoded prompt (best-effort) first
+            initial = self.tok.decode(prompt_tokens)
+            if initial:
+                print(initial, end=" ", flush=True)
 
         for _ in range(max_new_tokens):
             probs = self._next_token_distribution(tokens, temperature=temperature)
             if greedy:
                 next_id = max(range(len(probs)), key=lambda i: probs[i])
             else:
-                next_id = _sample_from_top_k(probs, min(top_k, V), self._rng)
+                if top_p and top_p > 0.0:
+                    next_id = _sample_from_top_p(probs, p=top_p, rng=self._rng)
+                else:
+                    next_id = _sample_from_top_k(probs, min(top_k, V), self._rng)
             next_tok = self.inv_vocab.get(next_id, "<unk>")
             tokens.append(next_tok)
+            if stream:
+                print(next_tok, end=" ", flush=True)
             if stop_token and next_tok == stop_token:
                 break
         return tokens
@@ -159,8 +193,9 @@ class Chatbot:
         top_k: int,
         stop_token: Optional[str],
         greedy: bool = False,
+        top_p: float = 0.0,
+        stream: bool = False,
     ) -> str:
-        # Simple role-tagged prompt
         prompt_text = " ".join(history + [f"User: {user_message}", "Assistant:"])
         prompt_toks = self.tok.encode(prompt_text)
         out_tokens = self.generate(
@@ -168,40 +203,38 @@ class Chatbot:
             max_new_tokens=max_new_tokens,
             temperature=temperature,
             top_k=top_k,
+            top_p=top_p,
             stop_token=stop_token,
             greedy=greedy,
+            stream=stream,
         )
-        # Extract only the newly generated assistant tokens
         new_toks = out_tokens[len(prompt_toks):]
-        return self.tok.decode(new_toks).strip()
+        reply = self.tok.decode(new_toks).strip()
+        if stream:
+            print()  # newline after streaming
+        return reply
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Console chatbot using BPETokenizer + TransformerEncoder + trained next-token head."
     )
-    # Generation flags quick reference:
-    # --max_new_tokens N  : Maximum number of tokens to generate for each assistant reply.
-    # --temperature FLOAT : Softmax temperature for sampling (default 0.9). Lower -> more deterministic.
-    # --top_k N           : Sample only from the top-K most probable tokens (default 20).
-    # --greedy            : Use greedy decoding (argmax) instead of sampling (ignores top_k/temperature).
-    # --stop_token TOK    : Stop generation when TOK is produced (e.g., "<eos>").
-    # Conversation control:
-    # --system TEXT       : Optional system prompt prepended to the conversation context.
     parser.add_argument("--head", type=str, required=True, help="Path to trained head JSON.")
     parser.add_argument("--merges", type=str, default="bpe_merges.txt", help="Path to BPE merges.")
     parser.add_argument("--vocab", type=str, default="bpe_vocab.json", help="Path to BPE vocab.")
     parser.add_argument("--dim", type=int, default=32, help="Model/embedding dimension.")
-    parser.add_argument("--layers", type=int, default=2, help="Number of encoder layers.")
-    parser.add_argument("--heads", type=int, default=4, help="Number of attention heads.")
-    parser.add_argument("--ff", type=int, default=64, help="FFN hidden size.")
+    parser.add_argument("--layers", type[int], default=2, help="Number of encoder layers.")
+    parser.add_argument("--heads", type[int], default=4, help="Number of attention heads.")
+    parser.add_argument("--ff", type[int], default=64, help="FFN hidden size.")
     parser.add_argument("--add_pe", action="store_true", help="Add sinusoidal positional encodings (must match training).")
-    parser.add_argument("--max_new_tokens", type=int, default=32, help="Generation length per turn.")
-    parser.add_argument("--temperature", type=float, default=0.9, help="Softmax temperature.")
-    parser.add_argument("--top_k", type=int, default=20, help="Top-k sampling.")
-    parser.add_argument("--stop_token", type=str, default="", help="Optional token that stops generation, e.g., '<eos>'.")
-    parser.add_argument("--system", type=str, default="", help="Optional system prompt that prefixes the conversation.")
+    parser.add_argument("--max_new_tokens", type[int], default=32, help="Generation length per turn.")
+    parser.add_argument("--temperature", type[float], default=0.9, help="Softmax temperature.")
+    parser.add_argument("--top_k", type[int], default=20, help="Top-k sampling.")
+    parser.add_argument("--top_p", type[float], default=0.0, help="Nucleus (top-p) sampling cutoff; 0 disables.")
+    parser.add_argument("--stop_token", type[str], default="", help="Optional token that stops generation, e.g., '<eos>'.")
+    parser.add_argument("--system", type[str], default="", help="Optional system prompt that prefixes the conversation.")
     parser.add_argument("--greedy", action="store_true", help="Use greedy decoding instead of sampling.")
+    parser.add_argument("--stream", action="store_true", help="Stream tokens as they are generated.")
     args = parser.parse_args()
 
     bot = Chatbot(
@@ -234,9 +267,10 @@ def main() -> None:
                 top_k=args.top_k,
                 stop_token=stop_tok,
                 greedy=args.greedy,
+                top_p=args.top_p,
+                stream=args.stream,
             )
             print(f"Assistant: {reply}")
-            # Append to history
             history.append(f"User: {user}")
             history.append(f"Assistant: {reply}")
     except (KeyboardInterrupt, EOFError):
