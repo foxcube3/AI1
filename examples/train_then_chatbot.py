@@ -266,27 +266,8 @@ def main() -> None:
             if not interactive:
                 break  # single-turn behavior for piped stdin
     except (KeyboardInterrupt, EOFError):
-        print("\nExiting due to interrupt/EOF.")
-    stop_tok = args.stop_token.strip() or None
-    try:
-        while True:
-            user = input("You: ").strip()
-            if not user:
-                continue
-            reply = bot.chat_once(
-                history=history,
-                user_message=user,
-                max_new_tokens=args.max_new_tokens,
-                temperature=args.temperature,
-                top_k=args.top_k,
-                stop_token=stop_tok,
-                greedy=args.greedy,
-            )
-            print(f"Assistant: {reply}")
-            history.append(f"User: {user}")
-            history.append(f"Assistant: {reply}")
-    except (KeyboardInterrupt, EOFError):
-        print("\nExiting due to interrupt/EOF.")
+        if interactive:
+            print("\nExiting.")
 
 
 if __name__ == "__main__":
