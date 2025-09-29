@@ -100,6 +100,7 @@ Repository contents
 - train_bpe.py — CLI to train and save merges and vocab.
 - allen.txt — Example corpus to get started immediately.
 - examples/example_encode.py — Load a trained tokenizer and encode text.
+- examples/example_decode.py — Encode and decode text; reconstructs words using "</w>" markers and writes output to a file.
 - examples/example_embed.py — Load tokenizer + vocab, build embedding layer, and embed text.
 - examples/example_embed_with_pe.py — Embed text and add sinusoidal positional encodings.
 - examples/example_embed_with_learned_pe.py — Embed text and add learned positional embeddings.
@@ -177,8 +178,8 @@ Programmatic usage
   - vectors_with_pe = pe.add_to(vectors)
 
 Notes
-- End-of-word marker </w> is used internally during training/encoding to avoid merges across word boundaries; it’s not exposed in the final tokens.
-- Human-readable decode: BPETokenizer.decode now applies a lightweight heuristic detokenizer to reinsert spaces and normalize punctuation so assistant/chatbot outputs read naturally. It’s still not intended for perfect text reconstruction, but is much more readable than raw subwords.
+- End-of-word marker </w> is used internally during training/encoding to avoid merges across word boundaries; merged tokens may contain "</w>" (e.g., "the</w>").
+- Deterministic decode: BPETokenizer.decode uses the "</w>" marker to reconstruct word boundaries and strips it from merged tokens, yielding clean, readable text. Spacing around punctuation is normalized. This provides stable outputs for assistants/chatbots.
 - vocab_size is an approximate target; actual number of merges learned depends on available frequent pairs and min_frequency.
 - Embedding OOV policy: tokens not present in vocab map to an internal <unk> index with its own embedding vector. This does not modify the saved vocab file.
 
@@ -186,6 +187,9 @@ Notes
 Examples
 - Encoding example: examples/example_encode.py
   - python examples/example_encode.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "This is a sample sentence."
+- Decode example: examples/example_decode.py
+  - python examples/example_decode.py --input allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --out examples/allen_decoded.txt
+  - Makefile convenience: make decode-allen (writes to examples/allen_decoded.txt)
 - Embedding example: examples/example_embed.py
   - python examples/example_embed.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32
 - Embedding + Sinusoidal Positional Encoding: examples/example_embed_with_pe.py
