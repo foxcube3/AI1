@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bpe-tokenizer-embedding"
+version = "0.1.0"
+description = "A simple BPE tokenizer and a dependency-free embedding layer."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+  { name = "Your Name", email = "you@example.com" }
+]
+keywords = ["bpe", "tokenizer", "nlp", "embedding"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+# We ship standalone modules rather than a package directory
+[tool.setuptools]
+py-modules = ["bpe_tokenizer", "embedding"]
+
+[project.urls]
+Homepage = "https://github.com/OWNER/REPO"
+Issues = "https://github.com/OWNER/REPO/issues"
