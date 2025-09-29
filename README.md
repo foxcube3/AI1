@@ -190,6 +190,15 @@ Examples
 - Decode example: examples/example_decode.py
   - python examples/example_decode.py --input allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --out examples/allen_decoded.txt
   - Makefile convenience: make decode-allen (writes to examples/allen_decoded.txt)
+  - Sample console output:
+    ```
+    Input file: allen.txt
+    First 120 chars of input: Allen allows ample analysis. Allen allows ample analysis. ...
+    Token count: 42
+    First 40 tokens: ['Allen</w>', 'allows</w>', 'ample</w>', 'analysis</w>', 'Allen</w>', 'allows</w>', ...]
+    Decoded written to: examples/allen_decoded.txt
+    First 120 chars of decoded: Allen allows ample analysis. Allen allows ample analysis. ...
+    ```
 - Embedding example: examples/example_embed.py
   - python examples/example_embed.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32
 - Embedding + Sinusoidal Positional Encoding: examples/example_embed_with_pe.py
