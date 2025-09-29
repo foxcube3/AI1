@@ -1,5 +1,5 @@
 BPE Tokenizer (Byte-Pair Encoding) + Embedding Layer
-[![CI](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml) [![Manual Terminal](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml) [![Manual CI](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml) [![PyPI](https://img.shields.io/pypi/v/bpe-tokenizer-embedding.svg)](https://pypi.org/project/bpe-tokenizer-embedding/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml) [![Manual Terminal](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml) [![Manual CI](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml) [![PyPI](https://img.shields.io/pypi/v/bpe-tokenizer-embedding.svg)](https://pypi.org/project/bpe-tokenizer-embedding/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Single-turn Chatbot](https://img.shields.io/badge/Chatbot-single--turn-blue)](#single-turn-chatbot) [![Manual Terminal Examples](https://img.shields.io/badge/CI-manual%20terminal%20examples-blue)](#ci-manual-terminal-examples)
 
 Table of Contents
 - [Overview](#overview)
@@ -10,6 +10,7 @@ Table of Contents
 - [Examples](#examples)
   - [Post-processing (inference) — quick reference](#post-processing-inference-quick-reference)
   - [Chatbot usage](#chatbot-usage)
+  - [Single-turn chatbot quick runs](#single-turn-chatbot)
 - [Simple training (next-token head)](#simple-training-next-token-head)
 - [API Reference](#api-reference)
   - [BPETokenizer](#bpetokenizer)
@@ -291,6 +292,7 @@ End-to-end (train then infer):
 - Single command to train and immediately run inference:
   - python examples/train_then_infer.py --corpus allen.txt --prompt "Allen allows" --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 3 --adam --add_pe --top_k 10 --save_head head.json
 
+<a id="single-turn-chatbot"></a>
 Single-turn chatbot quick runs (clean output)
 - Train head then answer one message without printing "You:" or extra lines:
   - Using explicit prompt:
@@ -346,6 +348,7 @@ CI
   - Builds wheels/sdist and uploads artifacts
   - Optional publish on tagged builds
 
+<a id="ci-manual-terminal-examples"></a>
 Manual, built-in terminal (on-demand)
 - Two additional workflows you can trigger from the Actions tab:
   1) Manual Terminal — arbitrary command runner
