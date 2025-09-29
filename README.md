@@ -250,3 +250,38 @@ Inference (next-token head):
 End-to-end (train then infer):
 - Single command to train and immediately run inference:
   - python examples/train_then_infer.py --corpus allen.txt --prompt "Allen allows" --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 3 --adam --add_pe --top_k 10 --save_head head.json
+
+Post-processing (inference) — quick reference
+- These options modify the next-token probability distribution produced during inference:
+  - --temperature FLOAT
+    - Scales softmax logits; lower values sharpen, higher values smooth.
+  - --allow_only "tok1,tok2,..."
+    - Only the listed tokens are allowed; others are set to 0 then renormalized.
+  - --ban_tokens "tokA,tokB,..."
+    - Listed tokens are set to 0 then renormalized.
+  - --exclude_pad --pad_token "<pad>"
+    - Removes the pad token from the output distribution (requires token string).
+  - --min_prob FLOAT
+    - Zeroes probabilities below the threshold and renormalizes.
+- Examples:
+  - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --temperature 0.8 --top_k 10
+  - python examples/infer_next_token.py --text "hello <pad>" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --exclude_pad --pad_token "<pad>"
+  - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --allow_only "Allen,analysis"
+  - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --ban_tokens "<unk>,<pad>" --min_prob 0.001
+
+API Reference — Inference Post-processing
+- The inference utility (examples/infer_next_token.py) exposes CLI flags that apply post-processing to the softmax distribution:
+  - Temperature: --temperature FLOAT
+    - Applies softmax with temperature t (default 1.0).
+  - Allow-only: --allow_only "comma,separated,tokens"
+    - Masks all tokens except the listed ones, then renormalizes.
+  - Ban tokens: --ban_tokens "comma,separated,tokens"
+    - Masks listed tokens (probability set to 0), then renormalizes.
+  - Exclude pad: --exclude_pad --pad_token "<pad>"
+    - Removes the pad token (by string name) from the distribution.
+  - Minimum probability: --min_prob FLOAT
+    - Zeros out probabilities below threshold, then renormalizes.
+- Notes:
+  - Token names must match entries in the vocab file used by the embedding layer.
+  - Unknown tokens map to the <unk> id; banning <unk> is allowed.
+  - Renormalization occurs only if total remaining mass > 0; otherwise the raw distribution is returned unchanged.
