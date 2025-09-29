@@ -350,6 +350,11 @@ Manual, built-in terminal (on-demand)
 Tips
 - Prefer Manual CI when you want a full validation in one click.
 - Use Manual Terminal for ad-hoc commands and debugging (output collected as artifact).
+
+Quick links
+- Default CI: [python-tests.yml](https://github.com/OWNER/REPO/actions/workflows/python-tests.yml)
+- Manual Terminal: [manual-terminal.yml](https://github.com/OWNER/REPO/actions/workflows/manual-terminal.yml)
+- Manual CI: [manual-ci.yml](https://github.com/OWNER/REPO/actions/workflows/manual-ci.yml)
   - Token names must match entries in the vocab file used by the embedding layer.
   - Unknown tokens map to the <unk> id; banning <unk> is allowed.
   - Renormalization occurs only if total remaining mass > 0; otherwise the raw distribution is returned unchanged.
