@@ -291,6 +291,15 @@ End-to-end (train then infer):
 - Single command to train and immediately run inference:
   - python examples/train_then_infer.py --corpus allen.txt --prompt "Allen allows" --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 3 --adam --add_pe --top_k 10 --save_head head.json
 
+Single-turn chatbot quick runs (clean output)
+- Train head then answer one message without printing "You:" or extra lines:
+  - Using explicit prompt:
+    - python examples/train_then_chatbot.py --single_turn --prompt "Hello there" --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+  - Read one line from stdin (no prompt printed):
+    - echo "Hello there" | python examples/train_then_chatbot.py --single_turn --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+  - Force stdin mode:
+    - echo "Hello there" | python examples/train_then_chatbot.py --stdin --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+
 <a id="post-processing-inference-quick-reference"></a>
 Post-processing (inference) — quick reference
 - These options modify the next-token probability distribution produced during inference:
@@ -350,6 +359,10 @@ Manual, built-in terminal (on-demand)
      - Examples:
        - cmd: python -m pytest -q
        - cmd: python examples/train_then_chatbot.py --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 16 --stride 16 --epochs 1 --lr 0.01 --add_pe --save_head head.json --max_new_tokens 16 --temperature 0.9 --top_k 10 --system "You are a helpful assistant." --greedy
+       - Clean single-turn chatbot with prompt:
+         - cmd: python examples/train_then_chatbot.py --single_turn --prompt "Hello from CI" --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+       - Clean single-turn chatbot via stdin (no prompt):
+         - cmd: echo "Hello from CI" \| python examples/train_then_chatbot.py --single_turn --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
   2) Manual CI (Tests + Chatbot) — curated pipeline on demand
      - File: .github/workflows/manual-ci.yml
      - Inputs:
@@ -368,6 +381,3 @@ Quick links
 - Default CI: [python-tests.yml](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml)
 - Manual Terminal: [manual-terminal.yml](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml)
 - Manual CI: [manual-ci.yml](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml)
-  - Token names must match entries in the vocab file used by the embedding layer.
-  - Unknown tokens map to the <unk> id; banning <unk> is allowed.
-  - Renormalization occurs only if total remaining mass > 0; otherwise the raw distribution is returned unchanged.
