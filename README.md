@@ -1,4 +1,5 @@
 BPE Tokenizer (Byte-Pair Encoding)
+[![CI](https://github.com/OWNER/REPO/actions/workflows/python-tests.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/python-tests.yml)
 
 Overview
 - A simple, self-contained BPE subword tokenizer implemented in Python.
@@ -42,3 +43,6 @@ Notes
 
 License
 - MIT or your preferred license (update as needed).
+
+CI badge note
+- Replace OWNER/REPO in the badge URL with your GitHub org/user and repository name after pushing to GitHub.
