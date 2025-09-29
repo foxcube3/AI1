@@ -254,8 +254,8 @@ def main() -> None:
             print(f"Assistant: {reply}")
             history.append(f"User: {user}")
             history.append(f"Assistant: {reply}")
-    except KeyboardInterrupt:
-        print("\nExiting.")
+    except (KeyboardInterrupt, EOFError):
+        print("\nExiting due to interrupt/EOF.")
 
 
 if __name__ == "__main__":
