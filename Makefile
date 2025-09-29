@@ -9,8 +9,14 @@
 #   HEAD   : path to trained head JSON (default: head.json)
 #   PROMPT : prompt string for generation (default: Allen allows)
 #   ARGS   : extra CLI args forwarded to the underlying scripts
+#
+# Dev targets:
+#   make lint       -> ruff + flake8
+#   make test       -> unittest discover
+#   make pytest     -> pytest (if installed)
+#   make ci         -> lint + test
 
-.PHONY: help chat-balanced chat-deterministic chat-creative generate-balanced
+.PHONY: help chat-balanced chat-deterministic chat-creative generate-balanced lint test pytest ci
 
 HEAD ?= head.json
 PROMPT ?= Allen allows
@@ -22,6 +28,10 @@ help:
 	@echo "  make chat-deterministic      HEAD=head.json"
 	@echo "  make chat-creative           HEAD=head.json ARGS='--stream'"
 	@echo "  make generate-balanced       PROMPT='Allen allows' HEAD=head.json ARGS='--out out.txt --jsonl gen.jsonl'"
+	@echo "  make lint                    Run ruff + flake8"
+	@echo "  make test                    Run unittest suite"
+	@echo "  make pytest                  Run pytest (if installed)"
+	@echo "  make ci                      Run lint + test"
 
 chat-balanced:
 	./examples/run_chat_balanced.sh $(HEAD) $(ARGS)
@@ -34,3 +44,15 @@ chat-creative:
 
 generate-balanced:
 	./examples/run_generate_balanced.sh "$(PROMPT)" $(HEAD) $(ARGS)
+
+lint:
+	ruff check .
+	flake8 .
+
+test:
+	python -m unittest discover tests -v
+
+pytest:
+	python -m pytest -q || echo "pytest not installed; skipping."
+
+ci: lint test
