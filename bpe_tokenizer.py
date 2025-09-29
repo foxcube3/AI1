@@ -186,8 +186,11 @@ class BPETokenizer:
         s = re.sub(r"([.!?])([A-Za-z\"'])", r"\1 \2", s)
 
         # Additional fixes observed in real texts:
-        # - Ensure spaces around standalone ampersand used as a word separator: "EAST&WEST" -> "EAST & WEST"
-        s = re.sub(r"(?<=\w)&(?=\w)", " & ", s)
+        # - Ensure spaces around ampersand used as a word separator:
+        #   "EAST&WEST" -> "EAST & WEST", "&WEST" -> "& WEST", "EAST&" -> "EAST &"
+        s = re.sub(r"(?<=\w)&(?=\w)", " & ", s)   # between words
+        s = re.sub(r"&(?=\w)", "& ", s)           # start of a word: "&WORD" -> "& WORD"
+        s = re.sub(r"(?<=\w)&", " &", s)          # end of a word: "WORD&" -> "WORD &"
         # - Insert a space before an opening quote when it's glued to the previous word: WATTS"Thoughtful -> WATTS "Thoughtful
         s = re.sub(r"(?<=\w)\"(?=\w)", ' "', s)
 
