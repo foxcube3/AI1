@@ -6,11 +6,57 @@ on:
   pull_request:
     branches: [ "**" ]
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
+concurrency:
+  group: python-tests-${{ github.ref }}
+  cancel-in-progress: true
 
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: 'pip'
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.txt
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-3.11-${{ hashFiles('requirements.txt', 'pyproject.toml') }}
+          restore-keys: |
+            pip-${{ runner.os }}-3.11-
+
+      - name: Install dependencies (lint)
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          python -m pip install ruff flake8
+          # Editable install to ensure package metadata is available
+          python -m pip install -e .
+
+      - name: Lint (ruff)
+        run: |
+          ruff --version
+          ruff check .
+
+      - name: Lint (flake8)
+        run: |
+          flake8 . --max-line-length 160 --extend-ignore E501,W292,E702,E741,F401,F841,E203,W503
+
+  tests:
+    name: Unit and smoke tests
+    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: [ "3.9", "3.10", "3.11" ]
 
@@ -22,22 +68,25 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: |
+            pyproject.toml
+            requirements.txt
 
-      - name: Install dependencies (if any)
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('requirements.txt', 'pyproject.toml') }}
+          restore-keys: |
+            pip-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Install dependencies (tests)
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          python -m pip install ruff flake8 build
+          python -m pip install build
           python -m pip install -e .
-
-      - name: Lint (ruff)
-        run: |
-          ruff --version
-          ruff check .
-
-      - name: Lint (flake8)
-        run: |
-          flake8 . --max-line-length 160 --extend-ignore E501,W292,E702,E741,F401,F841,E203,W503
 
       - name: Run unit tests
         run: |
@@ -76,6 +125,7 @@ jobs:
             ci_head_chat.json
 
       - name: Benchmark grid (quick)
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-benchmarks')) }}
         run: |
           python examples/benchmark_transformer_grid.py --seq_grid "8,16" --dim 16 --heads 4 --layers 1 --ff 32 --repeats 1
 
@@ -91,9 +141,8 @@ jobs:
 
   publish:
     name: Publish to PyPI (on tag)
-    needs: test
+    needs: tests
     runs-on: ubuntu-latest
-    # Use env. context instead of secrets. in the if-expression to avoid context restrictions.
     if: startsWith(github.ref, 'refs/tags/') && env.PYPI_API_TOKEN != ''
     env:
       PYPI_API_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
