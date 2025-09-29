@@ -64,6 +64,7 @@ jobs:
           echo "Hello from CI" | python examples/train_then_chatbot.py --corpus allen.txt --merges ci_bpe_merges.txt --vocab ci_bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head ci_head_chat.json --max_new_tokens 8 --temperature 0.9 --top_k 5
 
       - name: Upload artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: manual-ci-artifacts
@@ -73,13 +74,16 @@ jobs:
             ci_learned_pe.json
             ci_head.json
             ci_head_chat.json
+          if-no-files-found: ignore
 
       - name: Build distributions
         run: |
           python -m build
 
       - name: Upload dist artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dist-${{ github.event.inputs.python-version }}
           path: dist/*
+          if-no-files-found: ignore

@@ -50,7 +50,9 @@ jobs:
           echo "----- END OUTPUT -----"
 
       - name: Upload terminal output
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: terminal-output
           path: terminal_output.txt
+          if-no-files-found: ignore
