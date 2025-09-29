@@ -7,6 +7,7 @@ from transformer_blocks import (
     PositionwiseFeedForward,
     TransformerEncoderLayer,
     TransformerEncoder,
+    generate_causal_mask,
 )
 
 
@@ -173,43 +174,57 @@ class TestTransformerEncoderLayer(unittest.TestCase):
 
 
 class TestTransformerEncoder(unittest.TestCase):
-    def test_stack_identity_when_zeroed(self):
-        dim = 8
-        enc = TransformerEncoder(num_layers=3, dim=dim, num_heads=2, ff_hidden=16, seed=7)
-        # Zero-out all layers (MHA + FFN)
-        for layer in enc.layers:
-            z = zeros(dim, dim)
-            layer.mha.W_q = z
-            layer.mha.W_k = z
-            layer.mha.W_v = z
-            layer.mha.W_o = z
-            layer.mha.b_q = [0.0] * dim
-            layer.mha.b_k = [0.0] * dim
-            layer.mha.b_v = [0.0] * dim
-            layer.mha.b_o = [0.0] * dim
+     def test_stack_identity_when_zeroed(self):
+         dim = 8
+         enc = TransformerEncoder(num_layers=3, dim=dim, num_heads=2, ff_hidden=16, seed=7)
+         # Zero-out all layers (MHA + FFN)
+         for layer in enc.layers:
+             z = zeros(dim, dim)
+             layer.mha.W_q = z
+             layer.mha.W_k = z
+             layer.mha.W_v = z
+             layer.mha.W_o = z
+             layer.mha.b_q = [0.0] * dim
+             layer.mha.b_k = [0.0] * dim
+             layer.mha.b_v = [0.0] * dim
+             layer.mha.b_o = [0.0] * dim
 
-            layer.ffn.W1 = zeros(dim, layer.ffn.hidden_dim)
-            layer.ffn.W2 = zeros(layer.ffn.hidden_dim, dim)
-            layer.ffn.b1 = [0.0] * layer.ffn.hidden_dim
-            layer.ffn.b2 = [0.0] * dim
+             layer.ffn.W1 = zeros(dim, layer.ffn.hidden_dim)
+             layer.ffn.W2 = zeros(layer.ffn.hidden_dim, dim)
+             layer.ffn.b1 = [0.0] * layer.ffn.hidden_dim
+             layer.ffn.b2 = [0.0] * dim
 
-        X = [[(i + j) * 0.05 for j in range(dim)] for i in range(4)]
-        Y = enc(X)
-        self.assertEqual([[round(v, 8) for v in row] for row in Y],
-                         [[round(v, 8) for v in row] for row in X])
+         X = [[(i + j) * 0.05 for j in range(dim)] for i in range(4)]
+         Y = enc(X)
+         self.assertEqual([[round(v, 8) for v in row] for row in Y],
+                          [[round(v, 8) for v in row] for row in X])
 
-    def test_mask_flow(self):
-        dim = 8
-        enc = TransformerEncoder(num_layers=2, dim=dim, num_heads=2, ff_hidden=16, seed=1)
-        X = [[0.1 * (i + j) for j in range(dim)] for i in range(5)]
-        # simple lower-triangular mask
-        n = len(X)
-        mask = [[1.0 if j <= i else 0.0 for j in range(n)] for i in range(n)]
-        # Ensure it runs and returns correct shape
-        Y = enc(X, mask=mask)
-        self.assertEqual(len(Y), n)
-        self.assertTrue(all(len(row) == dim for row in Y))
+     def test_mask_flow(self):
+         dim = 8
+         enc = TransformerEncoder(num_layers=2, dim=dim, num_heads=2, ff_hidden=16, seed=1)
+         X = [[0.1 * (i + j) for j in range(dim)] for i in range(5)]
+         # simple lower-triangular mask
+         n = len(X)
+         mask = generate_causal_mask(n)
+         # Ensure it runs and returns correct shape
+         Y = enc(X, mask=mask)
+         self.assertEqual(len(Y), n)
+         self.assertTrue(all(len(row) == dim for row in Y))
 
 
-if __name__ == "__main__":
-    unittest.main()
+ class TestMasks(unittest.TestCase):
+     def test_generate_causal_mask(self):
+         for n in [0, 1, 2, 5]:
+             m = generate_causal_mask(n)
+             self.assertEqual(len(m), n)
+             for i in range(n):
+                 self.assertEqual(len(m[i]), n)
+                 for j in range(n):
+                     expected = 1.0 if j <= i else 0.0
+                     self.assertEqual(m[i][j], expected)
+         with self.assertRaises(ValueError):
+             generate_causal_mask(-1)
+
+
+ if __name__ == "__main__":
+     unittest.main()

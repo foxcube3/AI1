@@ -147,6 +147,16 @@ def _scaled_dot_product_attention(
     return _matmul(attn, V)
 
 
+def generate_causal_mask(seq_len: int) -> List[List[float]]:
+    """
+    Generate a lower-triangular causal mask of shape [seq_len x seq_len]
+    with 1.0 allowed and 0.0 masked (disallowed).
+    """
+    if seq_len < 0:
+        raise ValueError("seq_len must be non-negative")
+    return [[1.0 if j <= i else 0.0 for j in range(seq_len)] for i in range(seq_len)]
+
+
 def _init_matrix(rows: int, cols: int, rng: random.Random, scheme: str) -> List[List[float]]:
     s = scheme.lower()
     if s == "zeros":

@@ -83,9 +83,11 @@ Repository contents
 - examples/example_embed_with_learned_pe.py — Embed text and add learned positional embeddings.
 - examples/example_transformer_encoder.py — End-to-end example running a Transformer encoder on embedded tokens.
 - examples/train_and_embed.py — One-shot pipeline: train BPE then embed text.
+- examples/benchmark_transformer.py — Pure-Python benchmark utility for the Transformer encoder.
 - tests/test_bpe.py — Unit tests for BPETokenizer.
 - tests/test_embedding.py — Unit tests for EmbeddingLayer.
 - tests/test_positional.py — Unit tests for positional encoding.
+- tests/test_transformer.py — Unit tests for Transformer blocks and masks.
 - pyproject.toml — Packaging metadata and lint configuration (ruff + flake8).
 - .github/workflows/python-tests.yml — CI workflow.
 
@@ -174,6 +176,8 @@ Examples
   - python examples/example_embed_with_learned_pe.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32 --max_len 512
 - Transformer encoder over embedded tokens: examples/example_transformer_encoder.py
   - python examples/example_transformer_encoder.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32 --layers 2 --heads 4 --ff 64 --add_pe
+- Benchmark the Transformer encoder (pure Python): examples/benchmark_transformer.py
+  - python examples/benchmark_transformer.py --seq_len 64 --dim 64 --heads 8 --layers 4 --ff 256 --repeats 5 --causal
 - Train + embed pipeline: examples/train_and_embed.py
   - python examples/train_and_embed.py --corpus allen.txt --vocab_size 1000 --min_frequency 2 --output_prefix bpe --dim 32 --text "Allen allows ample analysis"
 
@@ -301,6 +305,9 @@ Per-position layer normalization. Callable on sequences X: List[List[float]] wit
 #### TransformerEncoder(num_layers: int, dim: int, num_heads: int, ff_hidden: int, seed: Optional[int] = None, init: str = "xavier_uniform")
 - forward(X, mask=None) -> List[List[float]]
 - Stacked encoder layers.
+
+#### generate_causal_mask(seq_len: int) -> List[List[float]]
+- Utility that returns a lower-triangular mask with 1.0 allowed and 0.0 masked.
 
 <a id="license"></a>
 License
