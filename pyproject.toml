@@ -45,7 +45,8 @@ exclude = [
 
 [tool.ruff.lint]
 # Parity with flake8 ignores used in CI
-ignore = ["E203", "W503"]
+# Note: Ruff 0.13+ may not recognize W503; drop it here to avoid parse errors.
+ignore = ["E203"]
 select = [
   "E",  # pycodestyle errors
   "F",  # pyflakes
