@@ -174,8 +174,11 @@ Examples
   - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_k 10
   - With explicit token candidates:
     - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --candidates "<pad>,Allen,analysis"
-- End-to-end (train then infer in one command): examples/train_then_infer.py
+- End-to-end (train then infer): examples/train_then_infer.py
   - python examples/train_then_infer.py --corpus allen.txt --prompt "Allen allows" --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 3 --adam --add_pe --top_k 10 --save_head head.json
+- Console chatbot (uses trained head): examples/chatbot.py
+  - Train a head first (see examples/train_next_token_head.py), then:
+    - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20
 
 Masking utilities (quick snippet)
 ```python
