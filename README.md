@@ -38,11 +38,19 @@ Table of Contents
     - [encode](#learnedpositionalembedding-encode)
     - [add_to](#learnedpositionalembedding-add-to)
   - [Inference Post-processing](#api-inference-post-processing)
+  - [Transformer Blocks](#transformer-blocks)
+    - [LayerNorm](#layernorm)
+    - [MultiHeadSelfAttention](#multiheadselfattention)
+    - [PositionwiseFeedForward](#positionwisefeedforward)
+    - [TransformerEncoderLayer](#transformerencoderlayer)
+    - [TransformerEncoder](#transformerencoder)
+    - [Mask utilities](#mask-utilities)
 - [Development](#development)
   - [Testing](#testing)
   - [Linting](#linting)
   - [Building and publishing](#building-and-publishing)
 - [CI](#ci)
+- [Contributing](#contributing)
 - [License](#license)
 
 <a id="overview"></a>
@@ -357,6 +365,73 @@ API Reference — Inference Post-processing
   - Unknown tokens map to the <unk> id; banning <unk> is allowed.
   - Renormalization occurs only if total remaining mass > 0; otherwise the raw distribution is returned unchanged.
 
+<a id="transformer-blocks"></a>
+API Reference — Transformer Blocks
+- All blocks are implemented with pure-Python list-based linear algebra (no external dependencies). Shapes use [seq_len x dim] for sequences.
+
+<a id="layernorm"></a>
+LayerNorm
+- Class: transformer_blocks.LayerNorm(dim: int, eps: float = 1e-5)
+- Purpose: Per-position layer normalization.
+- Call: ln(X) where X is [seq_len x dim]
+- Behavior:
+  - y = (x - mean) / sqrt(var + eps) * gamma + beta
+  - Deterministic fallback for near-constant vectors to avoid division by zero.
+
+<a id="multiheadselfattention"></a>
+MultiHeadSelfAttention
+- Class: transformer_blocks.MultiHeadSelfAttention(dim: int, num_heads: int, seed: Optional[int] = None, init: str = "xavier_uniform")
+- Purpose: Scaled dot-product attention with multi-head splitting.
+- Call: mha(X, mask=None) where X is [seq_len x dim]; mask is [seq_len x seq_len] with <=0 disallowed.
+- Notes:
+  - dim must be divisible by num_heads.
+  - Uses four parameter matrices W_q, W_k, W_v, W_o plus biases.
+  - Deterministic initialization with seed.
+
+<a id="positionwisefeedforward"></a>
+PositionwiseFeedForward
+- Class: transformer_blocks.PositionwiseFeedForward(dim: int, hidden_dim: int, activation: str = "relu", seed: Optional[int] = None, init: str = "xavier_uniform")
+- Purpose: Two-layer MLP with ReLU applied position-wise.
+- Call: ffn(X) where X is [seq_len x dim]
+- Behavior: Y = W2 * ReLU(W1 * X + b1) + b2
+
+<a id="transformerencoderlayer"></a>
+TransformerEncoderLayer
+- Class: transformer_blocks.TransformerEncoderLayer(dim: int, num_heads: int, ff_hidden: int, seed: Optional[int] = None, init: str = "xavier_uniform")
+- Architecture: Pre-norm residual blocks
+  - x = x + MHA(LN1(x))
+  - x = x + FFN(LN2(x))
+- Call: layer(X, mask=None) where X is [seq_len x dim]
+
+<a id="transformerencoder"></a>
+TransformerEncoder
+- Class: transformer_blocks.TransformerEncoder(num_layers: int, dim: int, num_heads: int, ff_hidden: int, seed: Optional[int] = None, init: str = "xavier_uniform")
+- Purpose: Stack of TransformerEncoderLayer blocks.
+- Call: enc(X, mask=None) where X is [seq_len x dim]
+- Notes: Seeds are derived per-layer for deterministic construction.
+
+<a id="mask-utilities"></a>
+Mask utilities
+- Functions:
+  - generate_causal_mask(seq_len: int) -> [L x L]
+    - Lower-triangular (j <= i) 1.0 allowed, 0.0 masked.
+  - generate_padding_mask(seq_len: int, valid_len: int) -> [L x L]
+    - Positions >= valid_len are masked.
+  - generate_causal_padding_mask(seq_len: int, valid_len: int) -> [L x L]
+    - Causal + padding combined.
+  - generate_causal_masks_from_lengths(lengths: Sequence[int]) -> List[[L x L]]
+    - For a batch of lengths; L = max(lengths).
+  - generate_padding_mask_from_flags(pad_flags: Sequence[bool]) -> [L x L]
+    - True indicates padding.
+  - generate_causal_padding_mask_from_flags(pad_flags: Sequence[bool]) -> [L x L]
+    - Causal + padding from per-token flags.
+  - build_flags_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[bool]
+    - True for tokens equal to pad_token.
+  - make_causal_mask_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> [L x L]
+    - Convenience wrapper using build_flags_from_tokens.
+  - make_padding_mask_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> [L x L]
+    - Convenience wrapper using build_flags_from_tokens.
+
 <a id="development"></a>
 Development
 - Create and activate a virtual environment (recommended).
@@ -431,6 +506,24 @@ Quick links
 - Default CI: [python-tests.yml](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml)
 - Manual Terminal: [manual-terminal.yml](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml)
 - Manual CI: [manual-ci.yml](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml)
+
+<a id="contributing"></a>
+Contributing
+- We welcome PRs for bug fixes, improvements, examples, and docs.
+- Guidelines:
+  - Keep code dependency-free (pure Python standard library).
+  - Follow existing style and minimal, meaningful comments.
+  - Add or update unit tests under tests/ for new functionality.
+  - Run lint and tests locally:
+    - ruff check .
+    - flake8 .
+    - python -m unittest discover tests -v
+  - For features touching examples/, include a short usage snippet in README or the example's docstring.
+  - CI will run lint, tests, and smoke examples on pull requests.
+- Release process:
+  - Bump version in pyproject.toml.
+  - Build distributions: python -m build
+  - Publish via CI or twine after tagging.
 
 <a id="license"></a>
 License
