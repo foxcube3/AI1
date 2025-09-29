@@ -98,6 +98,56 @@ CI
     - git tag v0.1.0 && git push origin v0.1.0
   - The publish job will build and upload via twine.
 
+Examples
+- Encoding example: examples/example_encode.py
+  - python examples/example_encode.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "This is a sample sentence."
+- Embedding example: examples/example_embed.py
+  - python examples/example_embed.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32
+- Train + embed pipeline: examples/train_and_embed.py
+  - python examples/train_and_embed.py --corpus allen.txt --vocab_size 1000 --min_frequency 2 --output_prefix bpe --dim 32 --text "Allen allows ample analysis"
+
+API Reference
+- BPETokenizer (bpe_tokenizer.py)
+  - train(corpus_path: str, vocab_size: int = 1000, min_frequency: int = 2) -> None
+    - Learn merges from a corpus, build vocab.
+  - encode(text: str) -> List[str]
+    - Tokenize text into subword tokens.
+  - decode(tokens: Iterable[str]) -> str
+    - Baseline decode by joining tokens with spaces.
+  - save(merges_path: str, vocab_path: str) -> None
+    - Save merges and vocab.
+  - load(merges_path: str, vocab_path: str) -> None
+    - Load merges and vocab.
+
+- EmbeddingLayer (embedding.py)
+  - __init__(vocab: Dict[str, int], dim: int, seed: Optional[int] = None, init: str = "xavier_uniform", unk_token: str = "<unk>")
+    - Create an embedding table for a given vocab. Supports init schemes: zeros, uniform, xavier_uniform.
+  - from_vocab_file(vocab_path: str, dim: int, seed: Optional[int] = None, init: str = "xavier_uniform", unk_token: str = "<unk>") -> EmbeddingLayer
+    - Construct from a saved vocab JSON file.
+  - tokens_to_ids(tokens: Sequence[str]) -> List[int]
+    - Map tokens to ids using unk for OOV.
+  - ids_to_tokens(ids: Sequence[int]) -> List[str]
+    - Reverse mapping; returns <unk> for unknown ids.
+  - embed_ids(ids: Sequence[int]) -> List[List[float]]
+    - Lookup embeddings by id sequence.
+  - embed_tokens(tokens: Sequence[str]) -> List[List[float]]
+    - Convenience: tokens -> ids -> embeddings.
+  - embed_batch(batch_tokens: Sequence[Sequence[str]]) -> List[List[List[float]]]
+    - Batch embedding for multiple token sequences.
+  - save_weights(path: str) -> None
+    - Save weights and minimal metadata to JSON.
+  - load_weights(path: str) -> None
+    - Load weights and metadata from JSON.
+
+Anchors
+- Examples
+  - Encoding example: #examples
+  - Embedding example: #examples
+  - Train + embed pipeline: #examples
+- API
+  - BPETokenizer: #api-reference
+  - EmbeddingLayer: #api-reference
+
 License
 - MIT or your preferred license (update as needed).
 
