@@ -111,6 +111,8 @@ def main() -> None:
     parser.add_argument("--stop_token", type=str, default="", help="Optional stop token; generation stops when produced.")
     parser.add_argument("--system", type=str, default="", help="Optional system prompt prepended to the user prompt.")
     parser.add_argument("--seed", type=int, default=123, help="Random seed for sampling.")
+    parser.add_argument("--out", type=str, default="", help="Optional path to write final generated text.")
+    parser.add_argument("--jsonl", type=str, default="", help="Optional path to write per-step JSON lines for generation.")
     # Post-processing controls
     parser.add_argument("--allow_only", type=str, default="", help="Comma-separated tokens to allow; mask others.")
     parser.add_argument("--ban_tokens", type=str, default="", help="Comma-separated tokens to ban.")
@@ -157,49 +159,82 @@ def main() -> None:
     ban_tokens = {t.strip() for t in args.ban_tokens.split(",") if t.strip()} if args.ban_tokens.strip() else None
     exclude_pad_token = (args.pad_token.strip() or None) if args.exclude_pad else None
 
-    produced: List[str] = []
-    for _ in range(max(0, args.max_new_tokens)):
-        tokens = tok.encode(text)
-        if not tokens:
-            break
+    jsonl_fp = None
+    try:
+        if args.jsonl.strip():
+            jsonl_fp = open(args.jsonl, "w", encoding="utf-8")
 
-        X = emb.embed_tokens(tokens)
-        if pe is not None:
-            X = pe.add_to(X, offset=0)
+        produced: List[str] = []
+        for step in range(max(0, args.max_new_tokens)):
+            tokens = tok.encode(text)
+            if not tokens:
+                break
 
-        mask = make_causal_mask_from_tokens(tokens)
-        H = encoder(X, mask=mask)
-        x_last = H[-1]
+            X = emb.embed_tokens(tokens)
+            if pe is not None:
+                X = pe.add_to(X, offset=0)
 
-        logits = _matvec(W_out, x_last)
-        for i in range(len(logits)):
-            logits[i] += b_out[i]
+            mask = make_causal_mask_from_tokens(tokens)
+            H = encoder(X, mask=mask)
+            x_last = H[-1]
 
-        probs_raw = _softmax_vec(logits, temperature=args.temperature)
-        probs = _post_process_probs(
-            probs_raw,
-            emb=emb,
-            allow_only=allow_only,
-            ban_tokens=ban_tokens,
-            exclude_pad_token=exclude_pad_token,
-            min_prob=args.min_prob,
-        )
+            logits = _matvec(W_out, x_last)
+            for i in range(len(logits)):
+                logits[i] += b_out[i]
 
-        if args.greedy:
-            j = max(range(len(probs)), key=lambda idx: probs[idx])
-        else:
-            j = _sample_top_k(probs, k=args.top_k, rng=rng)
+            probs_raw = _softmax_vec(logits, temperature=args.temperature)
+            probs = _post_process_probs(
+                probs_raw,
+                emb=emb,
+                allow_only=allow_only,
+                ban_tokens=ban_tokens,
+                exclude_pad_token=exclude_pad_token,
+                min_prob=args.min_prob,
+            )
 
-        next_tok = id_to_token.get(j, "<unk>")
-        if args.stop_token and next_tok == args.stop_token:
-            break
-        produced.append(next_tok)
+            if args.greedy:
+                j = max(range(len(probs)), key=lambda idx: probs[idx])
+                sampled_from = "greedy"
+                top_idx = sorted(range(len(probs)), key=lambda x: probs[x], reverse=True)[:max(1, args.top_k)]
+            else:
+                j = _sample_top_k(probs, k=args.top_k, rng=rng)
+                sampled_from = "top_k"
+                top_idx = sorted(range(len(probs)), key=lambda x: probs[x], reverse=True)[:max(1, args.top_k)]
 
-        # Append with a space; BPETokenizer.decode will make output readable
-        text = (text + " " + next_tok).strip()
+            next_tok = id_to_token.get(j, "<unk>")
+            should_stop = bool(args.stop_token and next_tok == args.stop_token)
+            if jsonl_fp is not None:
+                event = {
+                    "step": step,
+                    "prompt": text,
+                    "next_token": next_tok,
+                    "stop": should_stop,
+                    "sampled_from": sampled_from,
+                    "temperature": args.temperature,
+                    "top_k": args.top_k,
+                    "candidates": [
+                        {"id": idx, "token": id_to_token.get(idx, "<unk>"), "p": probs[idx]}
+                        for idx in top_idx
+                    ],
+                }
+                jsonl_fp.write(json.dumps(event) + "\n")
+
+            if should_stop:
+                break
+            produced.append(next_tok)
+
+            # Append with a space; BPETokenizer.decode will make output readable
+            text = (text + " " + next_tok).strip()
+
+    finally:
+        if jsonl_fp is not None:
+            jsonl_fp.close()
 
     final = tok.decode(tok.encode(text))
     print(final)
+    if args.out.strip():
+        with open(args.out, "w", encoding="utf-8") as f_out:
+            f_out.write(final + "\n")
 
 
 if __name__ == "__main__":

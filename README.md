@@ -235,6 +235,11 @@ Examples
     - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --greedy --max_new_tokens 16 --stop_token "<eos>"
   - Top-k sampling:
     - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_k 10 --temperature 0.9 --max_new_tokens 16
+  - Optional outputs:
+    - Write final text to a file:
+      - --out out.txt
+    - Write per-step JSON logs (JSON Lines format):
+      - --jsonl gen_log.jsonl
 
 <a id="chatbot-usage"></a>
 Chatbot usage
