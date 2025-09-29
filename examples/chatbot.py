@@ -239,7 +239,7 @@ def main() -> None:
             # Append to history
             history.append(f"User: {user}")
             history.append(f"Assistant: {reply}")
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EOFError):
         print("\nExiting.")
 
 
