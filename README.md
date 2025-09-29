@@ -232,6 +232,13 @@ Examples
     - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20
   - With nucleus sampling (top-p) and streaming:
     - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --top_p 0.9 --stream
+  - With presets:
+    - Deterministic:
+      - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --preset deterministic
+    - Balanced:
+      - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --preset balanced
+    - Creative:
+      - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --preset creative --stream
 - Sequence generation (iterative decoding): examples/generate_sequence.py
   - Greedy:
     - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --greedy --max_new_tokens 16 --stop_token "<eos>"
@@ -258,6 +265,13 @@ Examples
       - --top_p 0.9  (uses the smallest set of tokens whose cumulative probability ≥ p)
     - Streaming tokens:
       - --stream  (prints tokens to stdout as they are generated)
+  - Presets:
+    - Deterministic:
+      - --preset deterministic  (greedy, temperature≈0.7; ignores top-p)
+    - Balanced:
+      - --preset balanced      (temperature≈0.9, top_k=20, top_p≈0.9)
+    - Creative:
+      - --preset creative      (temperature≈1.1, prefers top-p≈0.92)
 
 <a id="chatbot-usage"></a>
 Chatbot usage
@@ -921,6 +935,26 @@ Troubleshooting
   - Setting seeds on EmbeddingLayer, Transformer blocks, and examples yields repeatable outputs, but sampling (top_k/temperature) is stochastic unless you also fix random module state.
 - Decoding readability:
   - BPETokenizer.decode applies a heuristic detokenizer for human-readable output. It's not exact reconstruction but avoids "A l l e n" artifacts.
+
+<a id="recommended-decoding-settings"></a>
+Recommended decoding settings
+- Deterministic replies:
+  - --preset deterministic
+  - Equivalent manual settings: --greedy --temperature 0.7
+  - Use when you want stable, repeatable outputs for tests or demos.
+- Balanced creativity:
+  - --preset balanced
+  - Equivalent manual settings: --temperature 0.9 --top_k 20 --top_p 0.9
+  - Good default for general chat; diversity with reasonable coherence.
+- Creative/diverse:
+  - --preset creative
+  - Equivalent manual settings: --temperature 1.1 --top_p 0.92 (prefer nucleus sampling; set --top_k 0)
+  - Use for brainstorming or exploratory generation; higher variance.
+
+Notes
+- Presets override individual decoding flags if provided.
+- You can still fine-tune afterwards (e.g., pass --temperature to tweak).
+- For streaming UX, add --stream to echo tokens as they’re generated.
 
 <a id="license"></a>
 License

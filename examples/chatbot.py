@@ -235,7 +235,25 @@ def main() -> None:
     parser.add_argument("--system", type[str], default="", help="Optional system prompt that prefixes the conversation.")
     parser.add_argument("--greedy", action="store_true", help="Use greedy decoding instead of sampling.")
     parser.add_argument("--stream", action="store_true", help="Stream tokens as they are generated.")
+    parser.add_argument("--preset", type[str], default="", choices=["deterministic", "balanced", "creative"], help="Decoding preset: deterministic|balanced|creative.")
     args = parser.parse_args()
+
+    # Apply decoding presets (override relevant flags)
+    if args.preset == "deterministic":
+        args.greedy = True
+        args.temperature = 0.7
+        args.top_k = max(1, args.top_k)
+        args.top_p = 0.0
+    elif args.preset == "balanced":
+        args.greedy = False
+        args.temperature = 0.9
+        args.top_k = 20
+        args.top_p = 0.9
+    elif args.preset == "creative":
+        args.greedy = False
+        args.temperature = 1.1
+        args.top_k = 0  # prefer nucleus
+        args.top_p = 0.92
 
     bot = Chatbot(
         merges_path=args.merges,

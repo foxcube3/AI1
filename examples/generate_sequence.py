@@ -140,6 +140,7 @@ def main() -> None:
     parser.add_argument("--jsonl_include_all", action="store_true", help="Include full probability distribution per step in JSONL (large).")
     parser.add_argument("--max_total_tokens", type=int, default=0, help="Optional hard cap on total tokenized length (prompt + generated). 0 disables.")
     parser.add_argument("--max_total_chars", type=int, default=0, help="Optional hard cap on total character length (prompt + generated). 0 disables.")
+    parser.add_argument("--preset", type=str, default="", choices=["deterministic", "balanced", "creative"], help="Decoding preset: deterministic|balanced|creative.")
     # Post-processing controls
     parser.add_argument("--allow_only", type=str, default="", help="Comma-separated tokens to allow; mask others.")
     parser.add_argument("--ban_tokens", type=str, default="", help="Comma-separated tokens to ban.")
@@ -170,6 +171,23 @@ def main() -> None:
     pe = SinusoidalPositionalEncoding(dim=args.dim) if args.add_pe else None
 
     rng = random.Random(args.seed)
+
+    # Apply decoding presets (override relevant flags)
+    if args.preset == "deterministic":
+        args.greedy = True
+        args.temperature = 0.7
+        args.top_k = max(1, args.top_k)
+        args.top_p = 0.0
+    elif args.preset == "balanced":
+        args.greedy = False
+        args.temperature = 0.9
+        args.top_k = 20
+        args.top_p = 0.9
+    elif args.preset == "creative":
+        args.greedy = False
+        args.temperature = 1.1
+        args.top_k = 0  # prefer nucleus
+        args.top_p = 0.92
 
     base_text = args.prompt if not args.system else f"{args.system}\n{args.prompt}"
     text = base_text.strip()
