@@ -2,7 +2,7 @@ import argparse
 import json
 import math
 import random
-from typing import List, Optional, Sequence, Set
+from typing import List, Optional, Sequence, Set, Tuple
 
 from bpe_tokenizer import BPETokenizer
 from embedding import EmbeddingLayer
@@ -44,11 +44,33 @@ def _sample_top_k(probs: Sequence[float], k: int, rng: random.Random) -> int:
     top_idx = sorted(range(V), key=lambda j: probs[j], reverse=True)[:k]
     mass = sum(probs[j] for j in top_idx)
     if mass <= 0.0:
-        # fallback: uniform among top-k
         weights = [1.0 / k] * k
     else:
         weights = [probs[j] / mass for j in top_idx]
     return rng.choices(top_idx, weights=weights, k=1)[0]
+
+
+def _sample_top_p(probs: Sequence[float], p: float, rng: random.Random) -> Tuple[int, List[int]]:
+    V = len(probs)
+    if V == 0:
+        return 0, []
+    # Sort indices by descending probability
+    idx_sorted = sorted(range(V), key=lambda j: probs[j], reverse=True)
+    nucleus: List[int] = []
+    acc = 0.0
+    p = max(1e-6, min(float(p), 1.0))
+    for j in idx_sorted:
+        nucleus.append(j)
+        acc += probs[j]
+        if acc >= p:
+            break
+    mass = sum(probs[j] for j in nucleus)
+    if mass <= 0.0:
+        weights = [1.0 / len(nucleus)] * len(nucleus)
+    else:
+        weights = [probs[j] / mass for j in nucleus]
+    chosen = rng.choices(nucleus, weights=weights, k=1)[0]
+    return chosen, nucleus
 
 
 def _post_process_probs(
@@ -107,7 +129,9 @@ def main() -> None:
     parser.add_argument("--max_new_tokens", type=int, default=32, help="Maximum number of tokens to generate.")
     parser.add_argument("--temperature", type=float, default=1.0, help="Softmax temperature.")
     parser.add_argument("--top_k", type=int, default=10, help="Sample from top-k tokens.")
+    parser.add_argument("--top_p", type=float, default=0.0, help="Nucleus sampling cutoff (0 disables; 0<p<=1 enables).")
     parser.add_argument("--greedy", action="store_true", help="Use greedy decoding (argmax) instead of sampling.")
+    parser.add_argument("--stream", action="store_true", help="Stream tokens to stdout as they are generated.")
     parser.add_argument("--stop_token", type=str, default="", help="Optional stop token; generation stops when produced.")
     parser.add_argument("--system", type=str, default="", help="Optional system prompt prepended to the user prompt.")
     parser.add_argument("--seed", type=int, default=123, help="Random seed for sampling.")
@@ -147,7 +171,6 @@ def main() -> None:
 
     rng = random.Random(args.seed)
 
-    # Optional system prompt
     base_text = args.prompt if not args.system else f"{args.system}\n{args.prompt}"
     text = base_text.strip()
 
@@ -168,8 +191,13 @@ def main() -> None:
             jsonl_fp = open(args.jsonl, "w", encoding="utf-8")
 
         produced: List[str] = []
+        if args.stream:
+            # Print initial decoded prompt
+            initial = tok.decode(tok.encode(text))
+            if initial:
+                print(initial, end=" ", flush=True)
+
         for step in range(max(0, args.max_new_tokens)):
-            # Caps by chars/tokens before generating next token
             if args.max_total_chars > 0 and len(text) >= args.max_total_chars:
                 break
 
@@ -201,17 +229,20 @@ def main() -> None:
                 min_prob=args.min_prob,
             )
 
+            sampled_from = "greedy"
+            top_idx = sorted(range(len(probs)), key=lambda x: probs[x], reverse=True)[:max(1, args.top_k)]
             if args.greedy:
-                j = max(range(len(probs)), key=lambda idx: probs[idx])
-                sampled_from = "greedy"
-                top_idx = sorted(range(len(probs)), key=lambda x: probs[x], reverse=True)[:max(1, args.top_k)]
+                j = top_idx[0]
             else:
-                j = _sample_top_k(probs, k=args.top_k, rng=rng)
-                sampled_from = "top_k"
-                top_idx = sorted(range(len(probs)), key=lambda x: probs[x], reverse=True)[:max(1, args.top_k)]
+                if args.top_p and args.top_p > 0.0:
+                    j, nucleus = _sample_top_p(probs, p=args.top_p, rng=rng)
+                    sampled_from = "top_p"
+                    top_idx = nucleus
+                else:
+                    j = _sample_top_k(probs, k=args.top_k, rng=rng)
+                    sampled_from = "top_k"
 
             next_tok = id_to_token.get(j, "<unk>")
-            # If appending next token would exceed char cap, stop
             if args.max_total_chars > 0:
                 prospective = (text + " " + next_tok).strip()
                 if len(prospective) > args.max_total_chars:
@@ -227,13 +258,13 @@ def main() -> None:
                     "sampled_from": sampled_from,
                     "temperature": args.temperature,
                     "top_k": args.top_k,
+                    "top_p": args.top_p,
                     "candidates": [
                         {"id": idx, "token": id_to_token.get(idx, "<unk>"), "p": probs[idx]}
                         for idx in top_idx
                     ],
                 }
                 if args.jsonl_include_all:
-                    # Include full probability distribution; note: can be large for big vocabs.
                     event["probs"] = [{"id": i, "token": id_to_token.get(i, "<unk>"), "p": probs[i]} for i in range(len(probs))]
                 jsonl_fp.write(json.dumps(event) + "\n")
 
@@ -241,14 +272,17 @@ def main() -> None:
                 break
             produced.append(next_tok)
 
-            # Append with a space; BPETokenizer.decode will make output readable
             text = (text + " " + next_tok).strip()
+            if args.stream:
+                print(next_tok, end=" ", flush=True)
 
     finally:
         if jsonl_fp is not None:
             jsonl_fp.close()
 
     final = tok.decode(tok.encode(text))
+    if args.stream:
+        print()  # newline after streaming
     print(final)
     if args.out.strip():
         with open(args.out, "w", encoding="utf-8") as f_out:

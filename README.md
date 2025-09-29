@@ -247,6 +247,15 @@ Examples
       - --max_total_tokens 128
     - Hard cap total character length (prompt + generated):
       - --max_total_chars 500
+  - Decoding strategies:
+    - Greedy:
+      - --greedy
+    - Top-k sampling:
+      - --top_k 10 --temperature 0.9
+    - Nucleus (top-p) sampling:
+      - --top_p 0.9  (uses the smallest set of tokens whose cumulative probability ≥ p)
+    - Streaming tokens:
+      - --stream  (prints tokens to stdout as they are generated)
 
 <a id="chatbot-usage"></a>
 Chatbot usage
