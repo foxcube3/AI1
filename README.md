@@ -1,5 +1,5 @@
 BPE Tokenizer (Byte-Pair Encoding) + Embedding Layer
-[![CI](https://github.com/OWNER/REPO/actions/workflows/python-tests.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/python-tests.yml) [![Manual Terminal](https://github.com/OWNER/REPO/actions/workflows/manual-terminal.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/manual-terminal.yml) [![Manual CI](https://github.com/OWNER/REPO/actions/workflows/manual-ci.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/manual-ci.yml) [![PyPI](https://img.shields.io/pypi/v/bpe-tokenizer-embedding.svg)](https://pypi.org/project/bpe-tokenizer-embedding/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml) [![Manual Terminal](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml) [![Manual CI](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml) [![PyPI](https://img.shields.io/pypi/v/bpe-tokenizer-embedding.svg)](https://pypi.org/project/bpe-tokenizer-embedding/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Table of Contents
 - [Overview](#overview)
@@ -352,9 +352,9 @@ Tips
 - Use Manual Terminal for ad-hoc commands and debugging (output collected as artifact).
 
 Quick links
-- Default CI: [python-tests.yml](https://github.com/OWNER/REPO/actions/workflows/python-tests.yml)
-- Manual Terminal: [manual-terminal.yml](https://github.com/OWNER/REPO/actions/workflows/manual-terminal.yml)
-- Manual CI: [manual-ci.yml](https://github.com/OWNER/REPO/actions/workflows/manual-ci.yml)
+- Default CI: [python-tests.yml](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml)
+- Manual Terminal: [manual-terminal.yml](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml)
+- Manual CI: [manual-ci.yml](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml)
   - Token names must match entries in the vocab file used by the embedding layer.
   - Unknown tokens map to the <unk> id; banning <unk> is allowed.
   - Renormalization occurs only if total remaining mass > 0; otherwise the raw distribution is returned unchanged.
