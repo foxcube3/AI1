@@ -83,6 +83,32 @@ class TestMultiHeadSelfAttention(unittest.TestCase):
         Y_unmasked = mha(X, mask=None)
         self.assertNotEqual([round(v, 6) for v in Y_unmasked[0]], [1.0, 0.0, 0.0, 0.0])
 
+    def test_various_head_configs_and_invalid(self):
+        dim = 12
+        for h in [1, 2, 3, 4, 6, 12]:
+            mha = MultiHeadSelfAttention(dim, h, seed=1)
+            X = [[0.01 * (i + j) for j in range(dim)] for i in range(5)]
+            Y = mha(X)
+            self.assertEqual(len(Y), len(X))
+            self.assertTrue(all(len(row) == dim for row in Y))
+        # invalid heads (not dividing dim) should raise
+        with self.assertRaises(ValueError):
+            MultiHeadSelfAttention(dim, 5)
+        with self.assertRaises(ValueError):
+            MultiHeadSelfAttention(dim, 0)
+
+    def test_numerical_stability_large_values(self):
+        dim = 8
+        heads = 2
+        mha = MultiHeadSelfAttention(dim, heads, seed=2)
+        # Large magnitude inputs
+        X = [[(i + 1) * (j + 1) * 1e3 for j in range(dim)] for i in range(4)]
+        Y = mha(X)
+        # Ensure outputs are finite
+        for row in Y:
+            for v in row:
+                self.assertTrue(math.isfinite(v))
+
 
 class TestPositionwiseFeedForward(unittest.TestCase):
     def test_relu_identity_when_weights_are_identity(self):
