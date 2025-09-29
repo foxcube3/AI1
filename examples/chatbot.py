@@ -2,7 +2,7 @@ import argparse
 import json
 import math
 import random
-from typing import List, Optional, Sequence
+from typing import List, Optional, Sequence, Set
 
 from bpe_tokenizer import BPETokenizer
 from embedding import EmbeddingLayer
@@ -85,6 +85,48 @@ def _sample_from_top_p(probs: Sequence[float], p: float, rng: random.Random) -> 
     return nucleus[-1]
 
 
+def _post_process_probs(
+    probs: Sequence[float],
+    emb: EmbeddingLayer,
+    allow_only: Optional[Set[str]] = None,
+    ban_tokens: Optional[Set[str]] = None,
+    exclude_pad_token: Optional[str] = None,
+    min_prob: float = 0.0,
+) -> List[float]:
+    V = len(probs)
+    if V == 0:
+        return []
+    out = list(probs)
+
+    if allow_only:
+        allow_ids = {emb.token_to_id.get(t, emb.unk_id) for t in allow_only}
+        for i in range(V):
+            if i not in allow_ids:
+                out[i] = 0.0
+
+    if ban_tokens:
+        for t in ban_tokens:
+            idx = emb.token_to_id.get(t, None)
+            if idx is not None and 0 <= idx < V:
+                out[idx] = 0.0
+
+    if exclude_pad_token:
+        idx = emb.token_to_id.get(exclude_pad_token, None)
+        if idx is not None and 0 <= idx < V:
+            out[idx] = 0.0
+
+    if min_prob > 0.0:
+        thr = float(min_prob)
+        for i in range(V):
+            if out[i] < thr:
+                out[i] = 0.0
+
+    s = sum(out)
+    if s > 0.0:
+        out = [x / s for x in out]
+    return out
+
+
 class Chatbot:
     def __init__(
         self,
@@ -157,18 +199,29 @@ class Chatbot:
         stop_token: Optional[str] = None,
         greedy: bool = False,
         stream: bool = False,
+        allow_only: Optional[Set[str]] = None,
+        ban_tokens: Optional[Set[str]] = None,
+        exclude_pad_token: Optional[str] = None,
+        min_prob: float = 0.0,
     ) -> List[str]:
         tokens = list(prompt_tokens)
         V = len(self.inv_vocab)
 
         if stream:
-            # Print the decoded prompt (best-effort) first
             initial = self.tok.decode(prompt_tokens)
             if initial:
                 print(initial, end=" ", flush=True)
 
         for _ in range(max_new_tokens):
-            probs = self._next_token_distribution(tokens, temperature=temperature)
+            probs_raw = self._next_token_distribution(tokens, temperature=temperature)
+            probs = _post_process_probs(
+                probs_raw,
+                emb=self.emb,
+                allow_only=allow_only,
+                ban_tokens=ban_tokens,
+                exclude_pad_token=exclude_pad_token,
+                min_prob=min_prob,
+            )
             if greedy:
                 next_id = max(range(len(probs)), key=lambda i: probs[i])
             else:
@@ -195,6 +248,10 @@ class Chatbot:
         greedy: bool = False,
         top_p: float = 0.0,
         stream: bool = False,
+        allow_only: Optional[Set[str]] = None,
+        ban_tokens: Optional[Set[str]] = None,
+        exclude_pad_token: Optional[str] = None,
+        min_prob: float = 0.0,
     ) -> str:
         prompt_text = " ".join(history + [f"User: {user_message}", "Assistant:"])
         prompt_toks = self.tok.encode(prompt_text)
@@ -207,11 +264,15 @@ class Chatbot:
             stop_token=stop_token,
             greedy=greedy,
             stream=stream,
+            allow_only=allow_only,
+            ban_tokens=ban_tokens,
+            exclude_pad_token=exclude_pad_token,
+            min_prob=min_prob,
         )
         new_toks = out_tokens[len(prompt_toks):]
         reply = self.tok.decode(new_toks).strip()
         if stream:
-            print()  # newline after streaming
+            print()
         return reply
 
 
@@ -221,8 +282,8 @@ def main() -> None:
     )
     parser.add_argument("--head", type=str, required=True, help="Path to trained head JSON.")
     parser.add_argument("--merges", type=str, default="bpe_merges.txt", help="Path to BPE merges.")
-    parser.add_argument("--vocab", type=str, default="bpe_vocab.json", help="Path to BPE vocab.")
-    parser.add_argument("--dim", type=int, default=32, help="Model/embedding dimension.")
+    parser.add_argument("--vocab", type[str], default="bpe_vocab.json", help="Path to BPE vocab.")
+    parser.add_argument("--dim", type[int], default=32, help="Model/embedding dimension.")
     parser.add_argument("--layers", type[int], default=2, help="Number of encoder layers.")
     parser.add_argument("--heads", type[int], default=4, help="Number of attention heads.")
     parser.add_argument("--ff", type[int], default=64, help="FFN hidden size.")
@@ -236,30 +297,49 @@ def main() -> None:
     parser.add_argument("--greedy", action="store_true", help="Use greedy decoding instead of sampling.")
     parser.add_argument("--stream", action="store_true", help="Stream tokens as they are generated.")
     parser.add_argument("--preset", type[str], default="", choices=["deterministic", "balanced", "creative"], help="Decoding preset: deterministic|balanced|creative.")
+    # Post-processing flags
+    parser.add_argument("--allow_only", type[str], default="", help="Comma-separated tokens to allow; mask others.")
+    parser.add_argument("--ban_tokens", type[str], default="", help="Comma-separated tokens to ban.")
+    parser.add_argument("--exclude_pad", action="store_true", help="Exclude pad token by name provided via --pad_token.")
+    parser.add_argument("--pad_token", type[str], default="", help="Pad token string to exclude when --exclude_pad is set.")
+    parser.add_argument("--min_prob", type[float], default=0.0, help="Minimum probability threshold; lower values zeroed then renormalized.")
     args = parser.parse_args()
 
-    # Apply decoding presets (override relevant flags)
+    # Apply decoding presets
     if args.preset == "deterministic":
         args.greedy = True
         args.temperature = 0.7
         args.top_k = max(1, args.top_k)
         args.top_p = 0.0
-        # Post-processing defaults
-        # Ban <unk>, exclude <pad>, no min_prob threshold by default
-        # (chatbot does not expose allow_only; keep minimal defaults)
+        if not args.ban_tokens.strip():
+            args.ban_tokens = "<unk>"
+        if not args.exclude_pad:
+            args.exclude_pad = True
+        if not args.pad_token.strip():
+            args.pad_token = "<pad>"
+        if args.min_prob <= 0.0:
+            args.min_prob = 0.0
     elif args.preset == "balanced":
         args.greedy = False
         args.temperature = 0.9
         args.top_k = 20
         args.top_p = 0.9
-        # Post-processing defaults similar to generator:
-        # Ban <unk>, exclude <pad>, min_prob ~ 1e-3 (handled in generator utility; chatbot keeps core flags)
+        if not args.ban_tokens.strip():
+            args.ban_tokens = "<unk>"
+        if not args.exclude_pad:
+            args.exclude_pad = True
+        if not args.pad_token.strip():
+            args.pad_token = "<pad>"
+        if args.min_prob <= 0.0:
+            args.min_prob = 0.001
     elif args.preset == "creative":
         args.greedy = False
         args.temperature = 1.1
-        args.top_k = 0  # prefer nucleus
+        args.top_k = 0
         args.top_p = 0.92
-        # Post-processing defaults: no added min_prob; avoid banning diversity
+        if not args.ban_tokens.strip():
+            args.ban_tokens = "<unk>"
+        # leave exclude_pad/min_prob unchanged for maximum diversity
 
     bot = Chatbot(
         merges_path=args.merges,
@@ -278,6 +358,10 @@ def main() -> None:
 
     print("Chatbot ready. Type your message and press Enter. Ctrl+C to exit.")
     stop_tok = args.stop_token.strip() or None
+    allow_only = {t.strip() for t in args.allow_only.split(",") if t.strip()} if args.allow_only.strip() else None
+    ban_tokens = {t.strip() for t in args.ban_tokens.split(",") if t.strip()} if args.ban_tokens.strip() else None
+    exclude_pad_token = (args.pad_token.strip() or None) if args.exclude_pad else None
+
     try:
         while True:
             user = input("You: ").strip()
@@ -293,6 +377,10 @@ def main() -> None:
                 greedy=args.greedy,
                 top_p=args.top_p,
                 stream=args.stream,
+                allow_only=allow_only,
+                ban_tokens=ban_tokens,
+                exclude_pad_token=exclude_pad_token,
+                min_prob=args.min_prob,
             )
             print(f"Assistant: {reply}")
             history.append(f"User: {user}")

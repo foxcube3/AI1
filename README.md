@@ -265,13 +265,22 @@ Examples
       - --top_p 0.9  (uses the smallest set of tokens whose cumulative probability ≥ p)
     - Streaming tokens:
       - --stream  (prints tokens to stdout as they are generated)
+  - Post-processing (generator and chatbot):
+    - Allow-only:
+      - --allow_only "tok1,tok2"
+    - Ban tokens:
+      - --ban_tokens "<unk>,<pad>"
+    - Exclude pad by name:
+      - --exclude_pad --pad_token "<pad>"
+    - Minimum probability threshold:
+      - --min_prob 0.001
   - Presets:
     - Deterministic:
-      - --preset deterministic  (greedy, temperature≈0.7; ignores top-p)
+      - --preset deterministic  (greedy, temperature≈0.7; bans <unk>, excludes <pad>)
     - Balanced:
-      - --preset balanced      (temperature≈0.9, top_k=20, top_p≈0.9)
+      - --preset balanced      (temperature≈0.9, top_k=20, top_p≈0.9; bans <unk>, excludes <pad>, min_prob≈1e-3)
     - Creative:
-      - --preset creative      (temperature≈1.1, prefers top-p≈0.92)
+      - --preset creative      (temperature≈1.1, prefers top-p≈0.92; minimal filtering)
 
 <a id="chatbot-usage"></a>
 Chatbot usage
