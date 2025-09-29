@@ -58,6 +58,12 @@ Features
   - SinusoidalPositionalEncoding (Transformer-style).
   - LearnedPositionalEmbedding (trainable table up to a max length).
   - Generate PE matrices and add to embeddings without external deps.
+- Core Transformer Blocks (dependency-free)
+  - LayerNorm
+  - MultiHeadSelfAttention (scaled dot-product attention with masking)
+  - PositionwiseFeedForward (ReLU)
+  - TransformerEncoderLayer (pre-norm, residuals)
+  - TransformerEncoder (stacked encoder layers)
 - Tooling
   - Unit tests for tokenizer, embedding, and positional encoding.
   - Ruff and Flake8 linting configured via pyproject.toml.
@@ -68,16 +74,21 @@ Repository contents
 - bpe_tokenizer.py — BPETokenizer class (train, encode, save/load).
 - embedding.py — EmbeddingLayer (tokens/ids/embeddings, save/load weights).
 - positional_encoding.py — Sinusoidal positional encoding utilities.
+- transformer_blocks.py — Core Transformer blocks (LayerNorm, MHA, FFN, EncoderLayer, Encoder).
 - train_bpe.py — CLI to train and save merges and vocab.
 - allen.txt — Example corpus to get started immediately.
 - examples/example_encode.py — Load a trained tokenizer and encode text.
 - examples/example_embed.py — Load tokenizer + vocab, build embedding layer, and embed text.
 - examples/example_embed_with_pe.py — Embed text and add sinusoidal positional encodings.
 - examples/example_embed_with_learned_pe.py — Embed text and add learned positional embeddings.
+- examples/example_transformer_encoder.py — End-to-end example running a Transformer encoder on embedded tokens.
 - examples/train_and_embed.py — One-shot pipeline: train BPE then embed text.
+- examples/benchmark_transformer.py — Pure-Python benchmark utility for the Transformer encoder.
+- examples/benchmark_transformer_grid.py — Compare masked vs unmasked forward times across lengths.
 - tests/test_bpe.py — Unit tests for BPETokenizer.
 - tests/test_embedding.py — Unit tests for EmbeddingLayer.
 - tests/test_positional.py — Unit tests for positional encoding.
+- tests/test_transformer.py — Unit tests for Transformer blocks and masks.
 - pyproject.toml — Packaging metadata and lint configuration (ruff + flake8).
 - .github/workflows/python-tests.yml — CI workflow.
 
@@ -164,8 +175,46 @@ Examples
   - python examples/example_embed_with_pe.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32
 - Embedding + Learned Positional Embedding: examples/example_embed_with_learned_pe.py
   - python examples/example_embed_with_learned_pe.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32 --max_len 512
+- Transformer encoder over embedded tokens: examples/example_transformer_encoder.py
+  - python examples/example_transformer_encoder.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32 --layers 2 --heads 4 --ff 64 --add_pe
+  - With masks:
+    - --use_mask none|causal|padding_from_tokens|causal_from_tokens
+    - --pad_token "<pad>"  (used by *_from_tokens options)
+  - Examples:
+    - Causal: python examples/example_transformer_encoder.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32 --layers 2 --heads 4 --ff 64 --use_mask causal
+    - Padding from tokens: python examples/example_transformer_encoder.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "hello world <pad> <pad>" --dim 32 --layers 2 --heads 4 --ff 64 --use_mask padding_from_tokens --pad_token "<pad>"
+    - Causal+padding from tokens: python examples/example_transformer_encoder.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "hello world <pad> <pad>" --dim 32 --layers 2 --heads 4 --ff 64 --use_mask causal_from_tokens --pad_token "<pad>"
+- Benchmark the Transformer encoder (pure Python): examples/benchmark_transformer.py
+  - python examples/benchmark_transformer.py --seq_len 64 --dim 64 --heads 8 --layers 4 --ff 256 --repeats 5 --causal
 - Train + embed pipeline: examples/train_and_embed.py
   - python examples/train_and_embed.py --corpus allen.txt --vocab_size 1000 --min_frequency 2 --output_prefix bpe --dim 32 --text "Allen allows ample analysis"
+
+Masking utilities (quick snippet)
+```python
+from transformer_blocks import (
+    build_flags_from_tokens,
+    generate_padding_mask_from_flags,
+    make_causal_mask_from_tokens,
+)
+from bpe_tokenizer import BPETokenizer
+from embedding import EmbeddingLayer
+from transformer_blocks import TransformerEncoder
+
+# Prepare tokens and embeddings
+tok = BPETokenizer(); tok.load("bpe_merges.txt", "bpe_vocab.json")
+tokens = tok.encode("hello world <pad> <pad>")
+emb = EmbeddingLayer.from_vocab_file("bpe_vocab.json", dim=32, seed=42)
+X = emb.embed_tokens(tokens)
+
+# Build masks
+flags = build_flags_from_tokens(tokens, pad_token="<pad>")
+pad_mask = generate_padding_mask_from_flags(flags)             # padding-only
+causal_pad_mask = make_causal_mask_from_tokens(tokens)        # causal + padding
+
+# Run encoder with a mask
+enc = TransformerEncoder(num_layers=2, dim=32, num_heads=4, ff_hidden=64, seed=123)
+Y = enc(X, mask=causal_pad_mask)
+```
 
 <a id="api-reference"></a>
 API Reference
@@ -263,6 +312,58 @@ Save learned positional weights and metadata (dim, max_len) to JSON.
 
 #### load_weights(path: str) -> None
 Load learned positional weights and metadata from JSON.
+
+<a id="transformerblocks"></a>
+### Core Transformer Blocks (transformer_blocks.py)
+
+<a id="layernorm"></a>
+#### LayerNorm(dim: int, eps: float = 1e-5)
+Per-position layer normalization. Callable on sequences X: List[List[float]] with shape [seq_len x dim].
+
+<a id="mhsa"></a>
+#### MultiHeadSelfAttention(dim: int, num_heads: int, seed: Optional[int] = None, init: str = "xavier_uniform")
+- forward(X, mask=None) -> List[List[float]]
+- X shape: [seq_len x dim]; mask shape: [seq_len x seq_len] with values <= 0 masked.
+- Returns [seq_len x dim].
+
+<a id="ffn"></a>
+#### PositionwiseFeedForward(dim: int, hidden_dim: int, activation: str = "relu", seed: Optional[int] = None, init: str = "xavier_uniform")
+- forward(X) -> List[List[float]]
+- Applies two linear layers with ReLU, returns [seq_len x dim].
+
+<a id="encoderlayer"></a>
+#### TransformerEncoderLayer(dim: int, num_heads: int, ff_hidden: int, seed: Optional[int] = None, init: str = "xavier_uniform")
+- forward(X, mask=None) -> List[List[float]]
+- Pre-norm residual block: x = x + MHA(LN1(x)); x = x + FFN(LN2(x)).
+
+<a id="encoder"></a>
+#### TransformerEncoder(num_layers: int, dim: int, num_heads: int, ff_hidden: int, seed: Optional[int] = None, init: str = "xavier_uniform")
+- forward(X, mask=None) -> List[List[float]]
+- Stacked encoder layers.
+
+#### generate_causal_mask(seq_len: int) -> List[List[float]]
+- Utility that returns a lower-triangular mask with 1.0 allowed and 0.0 masked.
+
+#### generate_padding_mask(seq_len: int, valid_len: int) -> List[List[float]]
+- Masks out positions i or j >= valid_len (padding).
+
+#### generate_causal_padding_mask(seq_len: int, valid_len: int) -> List[List[float]]
+- Combines causal constraint (j <= i) with padding mask.
+
+#### generate_padding_mask_from_flags(pad_flags: Sequence[bool]) -> List[List[float]]
+- pad_flags[i] == True means position i is padding (masked). Returns [L x L] mask.
+
+#### generate_causal_padding_mask_from_flags(pad_flags: Sequence[bool]) -> List[List[float]]
+- Same as above but enforces causal constraint (j <= i).
+
+#### build_flags_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[bool]
+- Returns a per-token boolean list where True marks padding tokens.
+
+#### generate_causal_masks_from_lengths(lengths: Sequence[int]) -> List[List[List[float]]]
+- Convenience to create a batch of [L x L] causal+padding masks where L = max(lengths).
+
+#### make_causal_mask_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[List[float]]
+- Directly produce a causal+padding mask from a token sequence, masking positions equal to pad_token.
 
 <a id="license"></a>
 License
