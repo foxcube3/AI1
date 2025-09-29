@@ -237,13 +237,16 @@ Examples
       - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20 --allow_only "Allen,analysis"
     - Ban unknown and pad tokens:
       - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --top_p 0.9 --ban_tokens "<unk>,<pad>" --exclude_pad --pad_token "<pad>"
-  - With presets:
-    - Deterministic:
-      - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --preset deterministic
+  - With presets (one-click wrappers):
     - Balanced:
-      - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --preset balanced
+      - ./examples/run_chat_balanced.sh head.json
+    - Deterministic:
+      - ./examples/run_chat_deterministic.sh head.json
     - Creative:
-      - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --preset creative --stream
+      - ./examples/run_chat_creative.sh head.json --stream
+- One-click sequence generation:
+  - Balanced:
+    - ./examples/run_generate_balanced.sh "Allen allows" head.json --out out.txt --jsonl gen.jsonl
 - Sequence generation (iterative decoding): examples/generate_sequence.py
   - Greedy:
     - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --greedy --max_new_tokens 16 --stop_token "<eos>"
