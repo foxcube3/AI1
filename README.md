@@ -221,6 +221,19 @@ Chatbot usage
   - Add a system prompt:
     - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --system "You are a helpful assistant." --max_new_tokens 48
 
+Non-interactive/single-turn modes for train-then-chatbot
+- examples/train_then_chatbot.py now supports running a clean, single-turn interaction without interleaved prompts:
+  - --stdin: force non-interactive mode and read exactly one line from stdin (no "You:" prompt), then exit.
+  - --single_turn: run exactly one turn and exit.
+  - --prompt "TEXT": when used with --single_turn, provide the user message directly. If omitted, reads one line from stdin (or prompts once if interactive).
+- Examples:
+  - Single turn via explicit prompt:
+    - python examples/train_then_chatbot.py --single_turn --prompt "Hello there" --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+  - Single turn via stdin (no prompt printed):
+    - echo "Hello there" | python examples/train_then_chatbot.py --single_turn --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+  - Force non-interactive stdin mode:
+    - echo "Hello there" | python examples/train_then_chatbot.py --stdin --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+
 Masking utilities (quick snippet)
 ```python
 from transformer_blocks import (
