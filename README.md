@@ -85,6 +85,8 @@ Repository contents
 - examples/example_transformer_encoder.py — End-to-end example running a Transformer encoder on embedded tokens.
 - examples/train_and_embed.py — One-shot pipeline: train BPE then embed text.
 - examples/train_next_token_head.py — Train a next-token linear head on top of the frozen Transformer encoder.
+- examples/infer_next_token.py — Inference utility for the trained next-token head.
+- examples/train_then_infer.py — Train a next-token head and immediately run inference.
 - examples/benchmark_transformer.py — Pure-Python benchmark utility for the Transformer encoder.
 - examples/benchmark_transformer_grid.py — Compare masked vs unmasked forward times across lengths.
 - tests/test_bpe.py — Unit tests for BPETokenizer.
@@ -168,6 +170,12 @@ Examples
   - python examples/train_and_embed.py --corpus allen.txt --vocab_size 1000 --min_frequency 2 --output_prefix bpe --dim 32 --text "Allen allows ample analysis"
 - Simple training (next-token head): examples/train_next_token_head.py
   - python examples/train_next_token_head.py --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 5 --adam --add_pe --save_head head.json
+- Inference for trained head: examples/infer_next_token.py
+  - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_k 10
+  - With explicit token candidates:
+    - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --candidates "<pad>,Allen,analysis"
+- End-to-end (train then infer in one command): examples/train_then_infer.py
+  - python examples/train_then_infer.py --corpus allen.txt --prompt "Allen allows" --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 3 --adam --add_pe --top_k 10 --save_head head.json
 
 Masking utilities (quick snippet)
 ```python
@@ -215,3 +223,13 @@ Outputs:
 
 Limitations:
 - The encoder and embeddings are not updated (frozen). Extending this to full end-to-end training would require implementing a full autodiff or manual gradients for all blocks, which is out of scope for this dependency-free demo.
+
+Inference (next-token head):
+- After training and saving head.json:
+  - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_k 10
+- To score explicit candidates:
+  - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --candidates "<pad>,Allen,analysis"
+
+End-to-end (train then infer):
+- Single command to train and immediately run inference:
+  - python examples/train_then_infer.py --corpus allen.txt --prompt "Allen allows" --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 3 --adam --add_pe --top_k 10 --save_head head.json
