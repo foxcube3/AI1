@@ -1,11 +1,41 @@
 BPE Tokenizer (Byte-Pair Encoding) + Embedding Layer
 [![CI](https://github.com/OWNER/REPO/actions/workflows/python-tests.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/python-tests.yml)
 
+Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Repository contents](#repository-contents)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Examples](#examples)
+- [API Reference](#api-reference)
+  - [BPETokenizer](#bpetokenizer)
+    - [train](#bpetokenizer-train)
+    - [encode](#bpetokenizer-encode)
+    - [decode](#bpetokenizer-decode)
+    - [save](#bpetokenizer-save)
+    - [load](#bpetokenizer-load)
+  - [EmbeddingLayer](#embeddinglayer)
+    - [__init__](#embeddinglayer-init)
+    - [from_vocab_file](#embeddinglayer-from-vocab-file)
+    - [tokens_to_ids](#embeddinglayer-tokens-to-ids)
+    - [ids_to_tokens](#embeddinglayer-ids-to-tokens)
+    - [embed_ids](#embeddinglayer-embed-ids)
+    - [embed_tokens](#embeddinglayer-embed-tokens)
+    - [embed_batch](#embeddinglayer-embed-batch)
+    - [save_weights](#embeddinglayer-save-weights)
+    - [load_weights](#embeddinglayer-load-weights)
+- [Development](#development)
+- [CI](#ci)
+- [License](#license)
+
+<a id="overview"></a>
 Overview
 - A simple, self-contained BPE subword tokenizer implemented in Python.
 - A dependency-free EmbeddingLayer that is directly compatible with the tokenizer’s output (list of string tokens).
 - Includes examples, tests, linting, and packaging via pyproject.toml.
 
+<a id="features"></a>
 Features
 - BPETokenizer
   - Train on a corpus and save/load merges and vocab.
@@ -21,6 +51,7 @@ Features
   - Ruff and Flake8 linting configured via pyproject.toml.
   - GitHub Actions CI: lint, unit tests, smoke E2E pipeline, build wheels/sdist, optional publish on tag.
 
+<a id="repository-contents"></a>
 Repository contents
 - bpe_tokenizer.py — BPETokenizer class (train, encode, save/load).
 - embedding.py — EmbeddingLayer (tokens/ids/embeddings, save/load weights).
@@ -34,9 +65,11 @@ Repository contents
 - pyproject.toml — Packaging metadata and lint configuration (ruff + flake8).
 - .github/workflows/python-tests.yml — CI workflow.
 
+<a id="requirements"></a>
 Requirements
 - Python 3.8+ (no external dependencies)
 
+<a id="quick-start"></a>
 Quick start
 1) Train the tokenizer
 - python train_bpe.py
@@ -76,6 +109,7 @@ Notes
 - vocab_size is an approximate target; actual number of merges learned depends on available frequent pairs and min_frequency.
 - Embedding OOV policy: tokens not present in vocab map to an internal <unk> index with its own embedding vector. This does not modify the saved vocab file.
 
+<a id="development"></a>
 Development
 - Tests
   - python -m unittest discover -v
@@ -86,6 +120,7 @@ Development
   - python -m pip install build
   - python -m build
 
+<a id="ci"></a>
 CI
 - GitHub Actions runs on push and PR:
   - Lints with ruff and flake8 (settings in pyproject.toml).
@@ -98,6 +133,7 @@ CI
     - git tag v0.1.0 && git push origin v0.1.0
   - The publish job will build and upload via twine.
 
+<a id="examples"></a>
 Examples
 - Encoding example: examples/example_encode.py
   - python examples/example_encode.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "This is a sample sentence."
@@ -106,48 +142,72 @@ Examples
 - Train + embed pipeline: examples/train_and_embed.py
   - python examples/train_and_embed.py --corpus allen.txt --vocab_size 1000 --min_frequency 2 --output_prefix bpe --dim 32 --text "Allen allows ample analysis"
 
+<a id="api-reference"></a>
 API Reference
-- BPETokenizer (bpe_tokenizer.py)
-  - train(corpus_path: str, vocab_size: int = 1000, min_frequency: int = 2) -> None
-    - Learn merges from a corpus, build vocab.
-  - encode(text: str) -> List[str]
-    - Tokenize text into subword tokens.
-  - decode(tokens: Iterable[str]) -> str
-    - Baseline decode by joining tokens with spaces.
-  - save(merges_path: str, vocab_path: str) -> None
-    - Save merges and vocab.
-  - load(merges_path: str, vocab_path: str) -> None
-    - Load merges and vocab.
 
-- EmbeddingLayer (embedding.py)
-  - __init__(vocab: Dict[str, int], dim: int, seed: Optional[int] = None, init: str = "xavier_uniform", unk_token: str = "<unk>")
-    - Create an embedding table for a given vocab. Supports init schemes: zeros, uniform, xavier_uniform.
-  - from_vocab_file(vocab_path: str, dim: int, seed: Optional[int] = None, init: str = "xavier_uniform", unk_token: str = "<unk>") -> EmbeddingLayer
-    - Construct from a saved vocab JSON file.
-  - tokens_to_ids(tokens: Sequence[str]) -> List[int]
-    - Map tokens to ids using unk for OOV.
-  - ids_to_tokens(ids: Sequence[int]) -> List[str]
-    - Reverse mapping; returns <unk> for unknown ids.
-  - embed_ids(ids: Sequence[int]) -> List[List[float]]
-    - Lookup embeddings by id sequence.
-  - embed_tokens(tokens: Sequence[str]) -> List[List[float]]
-    - Convenience: tokens -> ids -> embeddings.
-  - embed_batch(batch_tokens: Sequence[Sequence[str]]) -> List[List[List[float]]]
-    - Batch embedding for multiple token sequences.
-  - save_weights(path: str) -> None
-    - Save weights and minimal metadata to JSON.
-  - load_weights(path: str) -> None
-    - Load weights and metadata from JSON.
+<a id="bpetokenizer"></a>
+### BPETokenizer (bpe_tokenizer.py)
 
-Anchors
-- Examples
-  - Encoding example: #examples
-  - Embedding example: #examples
-  - Train + embed pipeline: #examples
-- API
-  - BPETokenizer: #api-reference
-  - EmbeddingLayer: #api-reference
+<a id="bpetokenizer-train"></a>
+#### train(corpus_path: str, vocab_size: int = 1000, min_frequency: int = 2) -> None
+Learn merges from a corpus and build a vocabulary.
 
+<a id="bpetokenizer-encode"></a>
+#### encode(text: str) -> List[str]
+Tokenize text into subword tokens.
+
+<a id="bpetokenizer-decode"></a>
+#### decode(tokens: Iterable[str]) -> str
+Baseline decode by joining tokens with spaces.
+
+<a id="bpetokenizer-save"></a>
+#### save(merges_path: str, vocab_path: str) -> None
+Save merges and vocab to disk.
+
+<a id="bpetokenizer-load"></a>
+#### load(merges_path: str, vocab_path: str) -> None
+Load merges and vocab from disk.
+
+<a id="embeddinglayer"></a>
+### EmbeddingLayer (embedding.py)
+
+<a id="embeddinglayer-init"></a>
+#### __init__(vocab: Dict[str, int], dim: int, seed: Optional[int] = None, init: str = "xavier_uniform", unk_token: str = "<unk>")
+Create an embedding table for a given vocab. Supports init schemes: zeros, uniform, xavier_uniform.
+
+<a id="embeddinglayer-from-vocab-file"></a>
+#### from_vocab_file(vocab_path: str, dim: int, seed: Optional[int] = None, init: str = "xavier_uniform", unk_token: str = "<unk>") -> EmbeddingLayer
+Construct an embedding layer from a saved vocab JSON file.
+
+<a id="embeddinglayer-tokens-to-ids"></a>
+#### tokens_to_ids(tokens: Sequence[str]) -> List[int]
+Map tokens to ids using an unk id for OOV tokens.
+
+<a id="embeddinglayer-ids-to-tokens"></a>
+#### ids_to_tokens(ids: Sequence[int]) -> List[str]
+Reverse mapping; returns <unk> for unknown ids.
+
+<a id="embeddinglayer-embed-ids"></a>
+#### embed_ids(ids: Sequence[int]) -> List[List[float]]
+Lookup embeddings by id sequence.
+
+<a id="embeddinglayer-embed-tokens"></a>
+#### embed_tokens(tokens: Sequence[str]) -> List[List[float]]
+Convenience: tokens -> ids -> embeddings.
+
+<a id="embeddinglayer-embed-batch"></a>
+#### embed_batch(batch_tokens: Sequence[Sequence[str]]) -> List[List[List[float]]]
+Batch embedding for multiple token sequences.
+
+<a id="embeddinglayer-save-weights"></a>
+#### save_weights(path: str) -> None
+Save weights and minimal metadata to JSON.
+
+<a id="embeddinglayer-load-weights"></a>
+#### load_weights(path: str) -> None
+Load weights and metadata from JSON.
+
+<a id="license"></a>
 License
 - MIT or your preferred license (update as needed).
 
