@@ -110,6 +110,7 @@ Repository contents
 - examples/infer_next_token.py — Inference utility for the trained next-token head.
 - examples/train_then_infer.py — Train a next-token head and immediately run inference.
 - examples/train_then_chatbot.py — Train a next-token head and launch the console chatbot in one command.
+- examples/generate_sequence.py — CLI for iterative sequence generation with greedy or top-k sampling.
 - examples/benchmark_transformer.py — Pure-Python benchmark utility for the Transformer encoder.
 - examples/benchmark_transformer_grid.py — Compare masked vs unmasked forward times across lengths.
 - tests/test_bpe.py — Unit tests for BPETokenizer.
@@ -229,6 +230,11 @@ Examples
 - Console chatbot (uses trained head): examples/chatbot.py
   - Train a head first (see examples/train_next_token_head.py), then:
     - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20
+- Sequence generation (iterative decoding): examples/generate_sequence.py
+  - Greedy:
+    - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --greedy --max_new_tokens 16 --stop_token "<eos>"
+  - Top-k sampling:
+    - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_k 10 --temperature 0.9 --max_new_tokens 16
 
 <a id="chatbot-usage"></a>
 Chatbot usage
