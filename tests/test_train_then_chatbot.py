@@ -2,6 +2,7 @@ import os
 import sys
 import builtins
 
+
 def test_train_then_chatbot_single_turn(tmp_path):
     # Prepare output head path in temp directory
     head_path = tmp_path / "head.json"
