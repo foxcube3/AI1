@@ -12,7 +12,10 @@ Table of Contents
   - [Post-processing (inference) — quick reference](#post-processing-inference-quick-reference)
   - [Chatbot usage](#chatbot-usage)
   - [Single-turn chatbot quick runs](#single-turn-chatbot)
+  - [End-to-end: Tokenizer + Embedding + Encoder](#end-to-end-encoder)
+  - [Positional encodings in the encoder](#pe-in-encoder)
 - [Simple training (next-token head)](#simple-training-next-token-head)
+  - [End-to-end: next-token head](#end-to-end-next-token-head)
 - [API Reference](#api-reference)
   - [BPETokenizer](#bpetokenizer)
     - [train](#bpetokenizer-train)
@@ -51,6 +54,7 @@ Table of Contents
   - [Building and publishing](#building-and-publishing)
 - [CI](#ci)
 - [Contributing](#contributing)
+- [Troubleshooting](#troubleshooting)
 - [License](#license)
 
 <a id="overview"></a>
@@ -327,6 +331,103 @@ Single-turn chatbot quick runs (clean output)
     - echo "Hello there" | python examples/train_then_chatbot.py --single_turn --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
   - Force stdin mode:
     - echo "Hello there" | python examples/train_then_chatbot.py --stdin --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+
+<a id="end-to-end-next-token-head"></a>
+End-to-end: next-token head (train then generate)
+- This example trains a small next-token linear head on top of a frozen Transformer encoder, then generates the next token probabilities and samples output tokens.
+
+Train a head:
+```bash
+python examples/train_next_token_head.py \
+  --corpus allen.txt \
+  --merges bpe_merges.txt --vocab bpe_vocab.json \
+  --dim 32 --layers 2 --heads 4 --ff 64 \
+  --seq_len 32 --stride 32 --epochs 3 --lr 0.01 \
+  --add_pe \
+  --save_head head.json
+```
+
+Run inference and sample tokens:
+```bash
+# Basic inference with top-k sampling and temperature
+python examples/infer_next_token.py \
+  --text "Allen allows" \
+  --head head.json \
+  --merges bpe_merges.txt --vocab bpe_vocab.json \
+  --dim 32 --layers 2 --heads 4 --ff 64 \
+  --add_pe \
+  --top_k 10 \
+  --temperature 0.8
+```
+
+Programmatic outline:
+```python
+import json
+from bpe_tokenizer import BPETokenizer
+from embedding import EmbeddingLayer
+from positional_encoding import SinusoidalPositionalEncoding
+from transformer_blocks import TransformerEncoder, make_causal_mask_from_tokens
+
+# Load tokenizer and vocab
+tok = BPETokenizer(); tok.load("bpe_merges.txt", "bpe_vocab.json")
+emb = EmbeddingLayer.from_vocab_file("bpe_vocab.json", dim=32, seed=42)
+
+# Build frozen encoder
+enc = TransformerEncoder(num_layers=2, dim=32, num_heads=4, ff_hidden=64, seed=123)
+
+# Input text
+text = "Allen allows"
+tokens = tok.encode(text)
+ids = emb.tokens_to_ids(tokens)
+X = emb.embed_ids(ids)
+
+# Optional positional encoding
+pe = SinusoidalPositionalEncoding(dim=32)
+X_pe = pe.add_to(X)
+
+# Causal+padding mask
+mask = make_causal_mask_from_tokens(tokens)
+
+# Forward through encoder
+H = enc(X_pe, mask=mask)  # [T x 32], use the last position for next-token prediction
+
+# Load trained head weights
+with open("head.json", "r", encoding="utf-8") as f:
+    head = json.load(f)
+W_out = head["W_out"]  # [dim x vocab_size]
+b_out = head["b_out"]  # [vocab_size]
+
+# Compute logits for the last position (pure Python matvec)
+last = H[-1]
+logits = [sum(last[i] * W_out[i][j] for i in range(len(last))) + b_out[j] for j in range(len(b_out))]
+
+# Softmax with temperature
+import math
+T = 0.8
+m = max(logits)
+probs = [math.exp((x - m) / T) for x in logits]
+s = sum(probs)
+probs = [p / s for p in probs]
+
+# Sample top-k
+k = 10
+top_idx = sorted(range(len(probs)), key=lambda j: probs[j], reverse=True)[:k]
+# Renormalize within top-k
+top_mass = sum(probs[j] for j in top_idx)
+top_probs = [probs[j] / top_mass for j in top_idx]
+
+import random
+j = random.choices(top_idx, weights=top_probs, k=1)[0]
+
+# Map back to token
+# Build reverse vocab
+import json
+with open("bpe_vocab.json", "r", encoding="utf-8") as f:
+    vocab = json.load(f)
+id_to_token = {i: t for t, i in vocab.items()}
+token_out = id_to_token.get(j, "<unk>")
+print("Sampled next token:", token_out)
+```
 
 <a id="post-processing-inference-quick-reference"></a>
 Post-processing (inference) — quick reference
@@ -679,6 +780,31 @@ Contributing
   - Bump version in pyproject.toml.
   - Build distributions: python -m build
   - Publish via CI or twine after tagging.
+
+<a id="troubleshooting"></a>
+Troubleshooting
+- Dimension mismatches:
+  - Ensure EmbeddingLayer(dim) matches TransformerEncoder(dim).
+  - Positional encodings must use the same dim as embeddings; add_to will raise on mismatch.
+- Mask shapes:
+  - Masks must be [seq_len x seq_len]. Using tokens-based helpers is safer:
+    - make_causal_mask_from_tokens(tokens)
+    - make_padding_mask_from_tokens(tokens)
+- Vocab consistency:
+  - Use the same vocab file for embedding and inference. Unknown tokens map to <unk>.
+  - If you ban <unk> during inference, confirm it exists in the vocab or is allocated internally.
+- Learned positional embedding max_len:
+  - LearnedPositionalEmbedding.encode/add_to will raise if offset+length exceeds max_len. Increase max_len or trim sequences.
+- Next-token head alignment:
+  - Train and infer with matching encoder hyperparameters (dim, layers, heads, ff).
+  - If you trained with --add_pe, use the same PE during inference for consistent hidden states.
+- Performance tips:
+  - Reduce dim, layers, heads, ff for quicker runs.
+  - Shorten seq_len/stride and epochs in examples for faster CI or local smoke tests.
+- Determinism:
+  - Setting seeds on EmbeddingLayer, Transformer blocks, and examples yields repeatable outputs, but sampling (top_k/temperature) is stochastic unless you also fix random module state.
+- Decoding readability:
+  - BPETokenizer.decode applies a heuristic detokenizer for human-readable output. It's not exact reconstruction but avoids "A l l e n" artifacts.
 
 <a id="license"></a>
 License
