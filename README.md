@@ -177,6 +177,13 @@ Examples
   - python examples/example_embed_with_learned_pe.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32 --max_len 512
 - Transformer encoder over embedded tokens: examples/example_transformer_encoder.py
   - python examples/example_transformer_encoder.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32 --layers 2 --heads 4 --ff 64 --add_pe
+  - With masks:
+    - --use_mask none|causal|padding_from_tokens|causal_from_tokens
+    - --pad_token "<pad>"  (used by *_from_tokens options)
+  - Examples:
+    - Causal: python examples/example_transformer_encoder.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32 --layers 2 --heads 4 --ff 64 --use_mask causal
+    - Padding from tokens: python examples/example_transformer_encoder.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "hello world <pad> <pad>" --dim 32 --layers 2 --heads 4 --ff 64 --use_mask padding_from_tokens --pad_token "<pad>"
+    - Causal+padding from tokens: python examples/example_transformer_encoder.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "hello world <pad> <pad>" --dim 32 --layers 2 --heads 4 --ff 64 --use_mask causal_from_tokens --pad_token "<pad>"
 - Benchmark the Transformer encoder (pure Python): examples/benchmark_transformer.py
   - python examples/benchmark_transformer.py --seq_len 64 --dim 64 --heads 8 --layers 4 --ff 256 --repeats 5 --causal
 - Train + embed pipeline: examples/train_and_embed.py
