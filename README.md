@@ -16,6 +16,7 @@ Table of Contents
   - [Positional encodings in the encoder](#pe-in-encoder)
 - [Simple training (next-token head)](#simple-training-next-token-head)
   - [End-to-end: next-token head](#end-to-end-next-token-head)
+  - [Sequence generation (iterative decoding)](#sequence-generation)
 - [API Reference](#api-reference)
   - [BPETokenizer](#bpetokenizer)
     - [train](#bpetokenizer-train)
@@ -428,6 +429,92 @@ id_to_token = {i: t for t, i in vocab.items()}
 token_out = id_to_token.get(j, "<unk>")
 print("Sampled next token:", token_out)
 ```
+
+<a id="sequence-generation"></a>
+Sequence generation (iterative decoding)
+- Generate multiple tokens by iteratively:
+  1) Encoding the growing text
+  2) Embedding + optional positional encoding
+  3) Forwarding through the frozen encoder
+  4) Predicting next token with the trained head
+  5) Appending the sampled token to the text and repeating until a stop condition.
+
+Greedy decoding:
+```python
+import json, math
+from bpe_tokenizer import BPETokenizer
+from embedding import EmbeddingLayer
+from positional_encoding import SinusoidalPositionalEncoding
+from transformer_blocks import TransformerEncoder, make_causal_mask_from_tokens
+
+# Setup
+tok = BPETokenizer(); tok.load("bpe_merges.txt", "bpe_vocab.json")
+emb = EmbeddingLayer.from_vocab_file("bpe_vocab.json", dim=32, seed=42)
+enc = TransformerEncoder(num_layers=2, dim=32, num_heads=4, ff_hidden=64, seed=123)
+pe = SinusoidalPositionalEncoding(dim=32)
+
+with open("head.json", "r", encoding="utf-8") as f:
+    head = json.load(f)
+W_out, b_out = head["W_out"], head["b_out"]
+
+id_to_token = {i: t for t, i in json.load(open("bpe_vocab.json", "r", encoding="utf-8")).items()}
+
+def logits_for_text(text: str):
+    tokens = tok.encode(text)
+    X = emb.embed_tokens(tokens)
+    X_pe = pe.add_to(X)
+    H = enc(X_pe, mask=make_causal_mask_from_tokens(tokens))
+    h_last = H[-1]
+    logits = [sum(h_last[i] * W_out[i][j] for i in range(len(h_last))) + b_out[j] for j in range(len(b_out))]
+    return tokens, logits
+
+text = "Allen allows"
+max_new = 16
+stop_token = "<eos>"
+
+for _ in range(max_new):
+    tokens, logits = logits_for_text(text)
+    # Greedy: argmax
+    j = max(range(len(logits)), key=lambda idx: logits[idx])
+    next_tok = id_to_token.get(j, "<unk>")
+    if next_tok == stop_token:
+        break
+    # Append to text (best-effort with a space)
+    text = (text + " " + next_tok).strip()
+
+print("Final text:", tok.decode(tok.encode(text)))
+```
+
+Top-k sampling with temperature:
+```python
+import random, math
+
+def sample_top_k(logits, k=10, temperature=0.8):
+    m = max(logits)
+    probs = [math.exp((x - m) / max(1e-6, temperature)) for x in logits]
+    s = sum(probs)
+    probs = [p / (s if s > 0 else 1.0) for p in probs]
+    top_idx = sorted(range(len(probs)), key=lambda j: probs[j], reverse=True)[:k]
+    mass = sum(probs[j] for j in top_idx)
+    weights = [probs[j] / (mass if mass > 0 else 1.0) for j in top_idx]
+    return random.choices(top_idx, weights=weights, k=1)[0]
+
+text = "Allen allows"
+for _ in range(16):
+    _, logits = logits_for_text(text)
+    j = sample_top_k(logits, k=10, temperature=0.9)
+    next_tok = id_to_token.get(j, "<unk>")
+    if next_tok in {"<eos>", "<pad>"}:
+        break
+    text = (text + " " + next_tok).strip()
+
+print("Generated:", tok.decode(tok.encode(text)))
+```
+
+Notes:
+- Detokenization is heuristic; tok.decode provides readable output but not exact reconstruction.
+- Ensure consistent hyperparameters between training and inference: dim, layers, heads, ff, and whether positional encoding was added.
+- Stop conditions can include max token count, encountering a special token (e.g., <eos>), or probability thresholds.
 
 <a id="post-processing-inference-quick-reference"></a>
 Post-processing (inference) — quick reference
