@@ -125,7 +125,7 @@ jobs:
             ci_head_chat.json
 
       - name: Benchmark grid (quick)
-        if: ${{ github.event_name == 'push' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-benchmarks')) }}
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'run-benchmarks')) }}
         run: |
           python examples/benchmark_transformer_grid.py --seq_grid "8,16" --dim 16 --heads 4 --layers 1 --ff 32 --repeats 1
 
