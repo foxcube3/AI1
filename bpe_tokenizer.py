@@ -1,4 +1,5 @@
 import json
+import re
 from collections import Counter, defaultdict
 from typing import List, Tuple, Dict, Iterable
 
@@ -142,16 +143,55 @@ class BPETokenizer:
         return tokens
 
     def decode(self, tokens: Iterable[str]) -> str:
-        # Simple decode: join subwords, then split by inferred word boundaries.
-        # Since we dropped </w> markers in encode, we assume spaces separate words originally.
-        # Heuristic: if tokens contain merges learned with EOW they won't have explicit separators,
-        # so we reconstruct by joining tokens and then splitting by spaces originally added during encode.
-        # The safest approach without EOW markers is to simply join tokens with spaces where the original
-        # tokenizer split (i.e., between words).
-        # Here, assume tokens were produced by encode on a text; we decode by joining and then merging
-        # contiguous subword pieces based on presence of merge rules is non-trivial.
-        # We provide a simple baseline: concatenate tokens for each original word is unknown, so just join with spaces.
-        return " ".join(tokens)
+        """
+        Best-effort detokenization suitable for human-readable output.
+
+        Rationale:
+        - Our encode() drops </w> markers, so we cannot perfectly reconstruct original word
+          boundaries. Joining with spaces yields "A l l e n" artifacts.
+        - This heuristic concatenates alphanumeric subword pieces into words and inserts
+          spaces between words. It also fixes spacing around punctuation.
+
+        Strategy:
+        1) Build a provisional string by concatenating tokens without spaces.
+        2) Insert spaces between transitions that likely indicate word boundaries.
+        3) Normalize spaces around punctuation.
+
+        This is not guaranteed to match the original text, but produces readable output.
+        """
+        toks = list(tokens)
+        if not toks:
+            return ""
+
+        # Step 1: provisional concatenation (no spaces)
+        s = "".join(toks)
+
+        # Step 2: heuristic word-boundary insertion
+        # Insert space between:
+        # - lowercase/digit -> uppercase (camel-like)
+        # - letter -> digit or digit -> letter
+        # - sequences where a non-punctuation is followed by an opening quote if missing space
+        s = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", s)
+        s = re.sub(r"(?<=[A-Za-z])(?=[0-9])", " ", s)
+        s = re.sub(r"(?<=[0-9])(?=[A-Za-z])", " ", s)
+
+        # Step 3: punctuation spacing normalization
+        # Remove spaces before , . ! ? : ; ) ] } and add a single space after if needed
+        # Ensure spaces after sentence-ending punctuation.
+        def fix_punct(text: str) -> str:
+            text = re.sub(r"\s+([,.;:!?)}\]])", r"\1", text)
+            text = re.sub(r"([(\[{])\s+", r"\1", text)  # no space after opening
+            # Ensure exactly one space after , ; : if followed by a word char
+            text = re.sub(r"([,;:])([^\s])", r"\1 \2", text)
+            # Ensure space after sentence enders if followed by a letter/quote
+            text = re.sub(r"([.!?])([A-Za-z\"'])", r"\1 \2", text)
+            # Collapse multiple spaces
+            text = re.sub(r"\s{2,}", " ", text)
+            # Trim
+            return text.strip()
+
+        s = fix_punct(s)
+        return s
 
     def save(self, merges_path: str, vocab_path: str) -> None:
         with open(merges_path, "w", encoding="utf-8") as fm:
