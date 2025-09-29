@@ -144,54 +144,49 @@ class BPETokenizer:
 
     def decode(self, tokens: Iterable[str]) -> str:
         """
-        Best-effort detokenization suitable for human-readable output.
+        Deterministic detokenization using end-of-word markers.
 
-        Rationale:
-        - Our encode() drops </w> markers, so we cannot perfectly reconstruct original word
-          boundaries. Joining with spaces yields "A l l e n" artifacts.
-        - This heuristic concatenates alphanumeric subword pieces into words and inserts
-          spaces between words. It also fixes spacing around punctuation.
+        Explanation:
+        - During encoding, symbols are merged greedily and may include the end-of-word
+          marker "</w>" inside merged tokens (e.g., "hello</w>", "lo</w>").
+        - We can reliably reconstruct word boundaries by splitting whenever a token
+          contains the "</w>" marker.
+        - Any remaining tokens without a marker are concatenated into the current word.
 
-        Strategy:
-        1) Build a provisional string by concatenating tokens without spaces.
-        2) Insert spaces between transitions that likely indicate word boundaries.
-        3) Normalize spaces around punctuation.
-
-        This is not guaranteed to match the original text, but produces readable output.
+        This produces clean text without leaking "</w>" into the output.
         """
         toks = list(tokens)
         if not toks:
             return ""
 
-        # Step 1: provisional concatenation (no spaces)
-        s = "".join(toks)
+        words: List[str] = []
+        current: List[str] = []
 
-        # Step 2: heuristic word-boundary insertion
-        # Insert space between:
-        # - lowercase/digit -> uppercase (camel-like)
-        # - letter -> digit or digit -> letter
-        # - sequences where a non-punctuation is followed by an opening quote if missing space
-        s = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", s)
-        s = re.sub(r"(?<=[A-Za-z])(?=[0-9])", " ", s)
-        s = re.sub(r"(?<=[0-9])(?=[A-Za-z])", " ", s)
+        for tok in toks:
+            if "</w>" in tok:
+                # strip marker and end the current word
+                clean = tok.replace("</w>", "")
+                if clean:
+                    current.append(clean)
+                words.append("".join(current))
+                current = []
+            else:
+                current.append(tok)
 
-        # Step 3: punctuation spacing normalization
-        # Remove spaces before , . ! ? : ; ) ] } and add a single space after if needed
-        # Ensure spaces after sentence-ending punctuation.
-        def fix_punct(text: str) -> str:
-            text = re.sub(r"\s+([,.;:!?)}\]])", r"\1", text)
-            text = re.sub(r"([(\[{])\s+", r"\1", text)  # no space after opening
-            # Ensure exactly one space after , ; : if followed by a word char
-            text = re.sub(r"([,;:])([^\s])", r"\1 \2", text)
-            # Ensure space after sentence enders if followed by a letter/quote
-            text = re.sub(r"([.!?])([A-Za-z\"'])", r"\1 \2", text)
-            # Collapse multiple spaces
-            text = re.sub(r"\s{2,}", " ", text)
-            # Trim
-            return text.strip()
+        if current:
+            words.append("".join(current))
 
-        s = fix_punct(s)
-        return s
+        # Join words with a single space
+        s = " ".join(words)
+
+        # Normalize spacing around common punctuation: remove space before, ensure one after.
+        s = re.sub(r"\s+([,.;:!?)}\]])", r"\1", s)
+        s = re.sub(r"([\(\[\{])\s+", r"\1", s)  # no space after opening
+        s = re.sub(r"([,;:])([^\s])", r"\1 \2", s)
+        s = re.sub(r"([.!?])([A-Za-z\"'])", r"\1 \2", s)
+        s = re.sub(r"\s{2,}", " ", s)
+
+        return s.strip()
 
     def save(self, merges_path: str, vocab_path: str) -> None:
         with open(merges_path, "w", encoding="utf-8") as fm:
