@@ -145,7 +145,7 @@ Programmatic usage
 
 Notes
 - End-of-word marker </w> is used internally during training/encoding to avoid merges across word boundaries; it’s not exposed in the final tokens.
-- The decode method returns a space-joined string of tokens (baseline), which is adequate for many modeling pipelines but not intended for perfect text reconstruction.
+- Human-readable decode: BPETokenizer.decode now applies a lightweight heuristic detokenizer to reinsert spaces and normalize punctuation so assistant/chatbot outputs read naturally. It’s still not intended for perfect text reconstruction, but is much more readable than raw subwords.
 - vocab_size is an approximate target; actual number of merges learned depends on available frequent pairs and min_frequency.
 - Embedding OOV policy: tokens not present in vocab map to an internal <unk> index with its own embedding vector. This does not modify the saved vocab file.
 
@@ -311,6 +311,45 @@ API Reference — Inference Post-processing
   - Minimum probability: --min_prob FLOAT
     - Zeros out probabilities below threshold, then renormalizes.
 - Notes:
+  - Token names must match entries in the vocab file used by the embedding layer.
+  - Unknown tokens map to the &lt;unk&gt; id; banning &lt;unk&gt; is allowed.
+  - Renormalization occurs only if total remaining mass &gt; 0; otherwise the raw distribution is returned unchanged.
+
+<a id="ci"></a>
+CI
+- Default CI: .github/workflows/python-tests.yml runs on push/PR across Python 3.9–3.11
+  - Lint (ruff, flake8)
+  - Unit tests
+  - Smoke E2E examples (train_and_embed, learned PE persistence, encoder example, next-token head training/inference, train-then-chatbot single turn)
+  - Builds wheels/sdist and uploads artifacts
+  - Optional publish on tagged builds
+
+Manual, built-in terminal (on-demand)
+- Two additional workflows you can trigger from the Actions tab:
+  1) Manual Terminal — arbitrary command runner
+     - File: .github/workflows/manual-terminal.yml
+     - Inputs:
+       - python-version (default 3.11)
+       - cmd (default runs unit tests)
+     - Usage:
+       - Actions → Manual Terminal → Run workflow → adjust cmd as needed
+       - Output is captured and uploaded as terminal-output.txt artifact
+     - Examples:
+       - cmd: python -m pytest -q
+       - cmd: python examples/train_then_chatbot.py --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 16 --stride 16 --epochs 1 --lr 0.01 --add_pe --save_head head.json --max_new_tokens 16 --temperature 0.9 --top_k 10 --system "You are a helpful assistant." --greedy
+  2) Manual CI (Tests + Chatbot) — curated pipeline on demand
+     - File: .github/workflows/manual-ci.yml
+     - Inputs:
+       - python-version (default 3.11)
+     - Runs the same lint/tests/smoke steps as default CI and uploads artifacts:
+       - ci_bpe_merges.txt, ci_bpe_vocab.json
+       - ci_learned_pe.json
+       - ci_head.json, ci_head_chat.json
+       - Built distributions in dist/
+
+Tips
+- Prefer Manual CI when you want a full validation in one click.
+- Use Manual Terminal for ad-hoc commands and debugging (output collected as artifact).
   - Token names must match entries in the vocab file used by the embedding layer.
   - Unknown tokens map to the <unk> id; banning <unk> is allowed.
   - Renormalization occurs only if total remaining mass > 0; otherwise the raw distribution is returned unchanged.
