@@ -90,6 +90,7 @@ Repository contents
 - examples/train_next_token_head.py — Train a next-token linear head on top of the frozen Transformer encoder.
 - examples/infer_next_token.py — Inference utility for the trained next-token head.
 - examples/train_then_infer.py — Train a next-token head and immediately run inference.
+- examples/train_then_chatbot.py — Train a next-token head and launch the console chatbot in one command.
 - examples/benchmark_transformer.py — Pure-Python benchmark utility for the Transformer encoder.
 - examples/benchmark_transformer_grid.py — Compare masked vs unmasked forward times across lengths.
 - tests/test_bpe.py — Unit tests for BPETokenizer.
