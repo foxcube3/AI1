@@ -58,6 +58,12 @@ Features
   - SinusoidalPositionalEncoding (Transformer-style).
   - LearnedPositionalEmbedding (trainable table up to a max length).
   - Generate PE matrices and add to embeddings without external deps.
+- Core Transformer Blocks (dependency-free)
+  - LayerNorm
+  - MultiHeadSelfAttention (scaled dot-product attention with masking)
+  - PositionwiseFeedForward (ReLU)
+  - TransformerEncoderLayer (pre-norm, residuals)
+  - TransformerEncoder (stacked encoder layers)
 - Tooling
   - Unit tests for tokenizer, embedding, and positional encoding.
   - Ruff and Flake8 linting configured via pyproject.toml.
@@ -68,12 +74,14 @@ Repository contents
 - bpe_tokenizer.py — BPETokenizer class (train, encode, save/load).
 - embedding.py — EmbeddingLayer (tokens/ids/embeddings, save/load weights).
 - positional_encoding.py — Sinusoidal positional encoding utilities.
+- transformer_blocks.py — Core Transformer blocks (LayerNorm, MHA, FFN, EncoderLayer, Encoder).
 - train_bpe.py — CLI to train and save merges and vocab.
 - allen.txt — Example corpus to get started immediately.
 - examples/example_encode.py — Load a trained tokenizer and encode text.
 - examples/example_embed.py — Load tokenizer + vocab, build embedding layer, and embed text.
 - examples/example_embed_with_pe.py — Embed text and add sinusoidal positional encodings.
 - examples/example_embed_with_learned_pe.py — Embed text and add learned positional embeddings.
+- examples/example_transformer_encoder.py — End-to-end example running a Transformer encoder on embedded tokens.
 - examples/train_and_embed.py — One-shot pipeline: train BPE then embed text.
 - tests/test_bpe.py — Unit tests for BPETokenizer.
 - tests/test_embedding.py — Unit tests for EmbeddingLayer.
@@ -164,6 +172,8 @@ Examples
   - python examples/example_embed_with_pe.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32
 - Embedding + Learned Positional Embedding: examples/example_embed_with_learned_pe.py
   - python examples/example_embed_with_learned_pe.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32 --max_len 512
+- Transformer encoder over embedded tokens: examples/example_transformer_encoder.py
+  - python examples/example_transformer_encoder.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32 --layers 2 --heads 4 --ff 64 --add_pe
 - Train + embed pipeline: examples/train_and_embed.py
   - python examples/train_and_embed.py --corpus allen.txt --vocab_size 1000 --min_frequency 2 --output_prefix bpe --dim 32 --text "Allen allows ample analysis"
 
@@ -263,6 +273,34 @@ Save learned positional weights and metadata (dim, max_len) to JSON.
 
 #### load_weights(path: str) -> None
 Load learned positional weights and metadata from JSON.
+
+<a id="transformerblocks"></a>
+### Core Transformer Blocks (transformer_blocks.py)
+
+<a id="layernorm"></a>
+#### LayerNorm(dim: int, eps: float = 1e-5)
+Per-position layer normalization. Callable on sequences X: List[List[float]] with shape [seq_len x dim].
+
+<a id="mhsa"></a>
+#### MultiHeadSelfAttention(dim: int, num_heads: int, seed: Optional[int] = None, init: str = "xavier_uniform")
+- forward(X, mask=None) -> List[List[float]]
+- X shape: [seq_len x dim]; mask shape: [seq_len x seq_len] with values <= 0 masked.
+- Returns [seq_len x dim].
+
+<a id="ffn"></a>
+#### PositionwiseFeedForward(dim: int, hidden_dim: int, activation: str = "relu", seed: Optional[int] = None, init: str = "xavier_uniform")
+- forward(X) -> List[List[float]]
+- Applies two linear layers with ReLU, returns [seq_len x dim].
+
+<a id="encoderlayer"></a>
+#### TransformerEncoderLayer(dim: int, num_heads: int, ff_hidden: int, seed: Optional[int] = None, init: str = "xavier_uniform")
+- forward(X, mask=None) -> List[List[float]]
+- Pre-norm residual block: x = x + MHA(LN1(x)); x = x + FFN(LN2(x)).
+
+<a id="encoder"></a>
+#### TransformerEncoder(num_layers: int, dim: int, num_heads: int, ff_hidden: int, seed: Optional[int] = None, init: str = "xavier_uniform")
+- forward(X, mask=None) -> List[List[float]]
+- Stacked encoder layers.
 
 <a id="license"></a>
 License
