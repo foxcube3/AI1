@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import random
 from typing import List, Optional, Sequence
@@ -133,3 +134,29 @@ class LearnedPositionalEmbedding:
                 raise ValueError(f"Embedding dimension mismatch: expected {dim}, got {len(vec)}")
             out.append([a + b for a, b in zip(vec, pos)])
         return out
+
+    # -------- Persistence --------
+
+    def save_weights(self, path: str) -> None:
+        """
+        Save learned positional embedding weights and metadata to JSON.
+        """
+        payload = {
+            "dim": self.dim,
+            "max_len": self.max_len,
+            "weights": self.weights,
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False)
+
+    def load_weights(self, path: str) -> None:
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        self.dim = int(payload["dim"])
+        self.max_len = int(payload["max_len"])
+        self.weights = payload["weights"]
+        if any(len(row) != self.dim for row in self.weights):
+            raise ValueError("Loaded positional weights have inconsistent dimensions")
+        if len(self.weights) != self.max_len:
+            # Keep safety check but allow correcting max_len to actual length for robustness
+            self.max_len = len(self.weights)

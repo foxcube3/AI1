@@ -258,6 +258,12 @@ Return a [length x dim] slice starting from position `offset`. Raises if offset+
 #### add_to(embeddings: Sequence[Sequence[float]], offset: int = 0) -> List[List[float]]
 Element-wise add learned positional embeddings to an embedding sequence. Returns a new list.
 
+#### save_weights(path: str) -> None
+Save learned positional weights and metadata (dim, max_len) to JSON.
+
+#### load_weights(path: str) -> None
+Load learned positional weights and metadata from JSON.
+
 <a id="license"></a>
 License
 - MIT or your preferred license (update as needed).

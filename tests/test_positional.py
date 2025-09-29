@@ -1,5 +1,7 @@
 import unittest
 import math
+import os
+import tempfile
 
 from positional_encoding import SinusoidalPositionalEncoding, LearnedPositionalEmbedding
 
@@ -79,6 +81,20 @@ class TestLearnedPositionalEmbedding(unittest.TestCase):
             pe.encode(6)  # exceeds max_len
         with self.assertRaises(ValueError):
             pe.encode(3, offset=4)  # 4..6 exceeds max_len
+
+    def test_save_and_load(self):
+        dim = 6
+        max_len = 10
+        pe = LearnedPositionalEmbedding(dim=dim, max_len=max_len, seed=7)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "lpe.json")
+            pe.save_weights(path)
+
+            pe2 = LearnedPositionalEmbedding(dim=1, max_len=1)  # will be overwritten
+            pe2.load_weights(path)
+            self.assertEqual(pe2.dim, dim)
+            self.assertEqual(pe2.max_len, max_len)
+            self.assertEqual(pe2.weights, pe.weights)
 
 
 if __name__ == "__main__":
