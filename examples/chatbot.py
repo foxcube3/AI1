@@ -180,6 +180,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Console chatbot using BPETokenizer + TransformerEncoder + trained next-token head."
     )
+    # Generation flags quick reference:
+    # --max_new_tokens N  : Maximum number of tokens to generate for each assistant reply.
+    # --temperature FLOAT : Softmax temperature for sampling (default 0.9). Lower -> more deterministic.
+    # --top_k N           : Sample only from the top-K most probable tokens (default 20).
+    # --greedy            : Use greedy decoding (argmax) instead of sampling (ignores top_k/temperature).
+    # --stop_token TOK    : Stop generation when TOK is produced (e.g., "<eos>").
+    # Conversation control:
+    # --system TEXT       : Optional system prompt prepended to the conversation context.
     parser.add_argument("--head", type=str, required=True, help="Path to trained head JSON.")
     parser.add_argument("--merges", type=str, default="bpe_merges.txt", help="Path to BPE merges.")
     parser.add_argument("--vocab", type=str, default="bpe_vocab.json", help="Path to BPE vocab.")
@@ -231,7 +239,7 @@ def main() -> None:
             # Append to history
             history.append(f"User: {user}")
             history.append(f"Assistant: {reply}")
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EOFError):
         print("\nExiting.")
 
 

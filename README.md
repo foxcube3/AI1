@@ -8,6 +8,8 @@ Table of Contents
 - [Requirements](#requirements)
 - [Quick start](#quick-start)
 - [Examples](#examples)
+  - [Post-processing (inference) — quick reference](#post-processing-inference-quick-reference)
+  - [Chatbot usage](#chatbot-usage)
 - [Simple training (next-token head)](#simple-training-next-token-head)
 - [API Reference](#api-reference)
   - [BPETokenizer](#bpetokenizer)
@@ -33,6 +35,7 @@ Table of Contents
     - [__init__](#learnedpositionalembedding-init)
     - [encode](#learnedpositionalembedding-encode)
     - [add_to](#learnedpositionalembedding-add-to)
+  - [Inference Post-processing](#api-inference-post-processing)
 - [Development](#development)
 - [CI](#ci)
 - [License](#license)
@@ -87,6 +90,7 @@ Repository contents
 - examples/train_next_token_head.py — Train a next-token linear head on top of the frozen Transformer encoder.
 - examples/infer_next_token.py — Inference utility for the trained next-token head.
 - examples/train_then_infer.py — Train a next-token head and immediately run inference.
+- examples/train_then_chatbot.py — Train a next-token head and launch the console chatbot in one command.
 - examples/benchmark_transformer.py — Pure-Python benchmark utility for the Transformer encoder.
 - examples/benchmark_transformer_grid.py — Compare masked vs unmasked forward times across lengths.
 - tests/test_bpe.py — Unit tests for BPETokenizer.
@@ -171,14 +175,51 @@ Examples
 - Simple training (next-token head): examples/train_next_token_head.py
   - python examples/train_next_token_head.py --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 5 --adam --add_pe --save_head head.json
 - Inference for trained head: examples/infer_next_token.py
-  - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_k 10
+  - Basic usage:
+    - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_k 10
+  - Post-processing options:
+    - Temperature scaling:
+      - --temperature 0.7
+    - Allow only a set of tokens (others are masked to 0 then renormalized):
+      - --allow_only "Allen,analysis"
+    - Ban specific tokens:
+      - --ban_tokens "<unk>,<pad>"
+    - Exclude pad token by name:
+      - --exclude_pad --pad_token "<pad>"
+    - Minimum probability threshold (values below are zeroed then renormalized):
+      - --min_prob 0.001
   - With explicit token candidates:
     - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --candidates "<pad>,Allen,analysis"
+  - Example combining options:
+    - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --temperature 0.8 --exclude_pad --pad_token "<pad>" --ban_tokens "<unk>" --top_k 10
 - End-to-end (train then infer): examples/train_then_infer.py
   - python examples/train_then_infer.py --corpus allen.txt --prompt "Allen allows" --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 3 --adam --add_pe --top_k 10 --save_head head.json
 - Console chatbot (uses trained head): examples/chatbot.py
   - Train a head first (see examples/train_next_token_head.py), then:
     - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20
+
+<a id="chatbot-usage"></a>
+Chatbot usage
+- Prerequisite: Train a next-token head and save it to head.json (see examples/train_next_token_head.py).
+- Basic command:
+  - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20
+- Decoding modes:
+  - Greedy (deterministic): add --greedy to pick the argmax at each step.
+  - Sampling (default): temperature + top_k control diversity and candidate set.
+- Useful flags:
+  - --max_new_tokens N  : Maximum tokens per assistant reply.
+  - --temperature T     : Softmax temperature (lower -> more deterministic).
+  - --top_k K           : Sample from the top-K tokens.
+  - --greedy            : Use greedy decoding (ignores top_k/temperature).
+  - --stop_token "<eos>": Stop generation when the token is produced.
+  - --system "TEXT"     : Add a system prompt to guide behavior.
+- Examples:
+  - Greedy decoding:
+    - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --greedy --max_new_tokens 32
+  - Use a stop token:
+    - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --stop_token "<eos>" --max_new_tokens 64
+  - Add a system prompt:
+    - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --system "You are a helpful assistant." --max_new_tokens 48
 
 Masking utilities (quick snippet)
 ```python
@@ -236,3 +277,40 @@ Inference (next-token head):
 End-to-end (train then infer):
 - Single command to train and immediately run inference:
   - python examples/train_then_infer.py --corpus allen.txt --prompt "Allen allows" --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 3 --adam --add_pe --top_k 10 --save_head head.json
+
+<a id="post-processing-inference-quick-reference"></a>
+Post-processing (inference) — quick reference
+- These options modify the next-token probability distribution produced during inference:
+  - --temperature FLOAT
+    - Scales softmax logits; lower values sharpen, higher values smooth.
+  - --allow_only "tok1,tok2,..."
+    - Only the listed tokens are allowed; others are set to 0 then renormalized.
+  - --ban_tokens "tokA,tokB,..."
+    - Listed tokens are set to 0 then renormalized.
+  - --exclude_pad --pad_token "<pad>"
+    - Removes the pad token from the output distribution (requires token string).
+  - --min_prob FLOAT
+    - Zeroes probabilities below the threshold and renormalizes.
+- Examples:
+  - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --temperature 0.8 --top_k 10
+  - python examples/infer_next_token.py --text "hello <pad>" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --exclude_pad --pad_token "<pad>"
+  - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --allow_only "Allen,analysis"
+  - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --ban_tokens "<unk>,<pad>" --min_prob 0.001
+
+<a id="api-inference-post-processing"></a>
+API Reference — Inference Post-processing
+- The inference utility (examples/infer_next_token.py) exposes CLI flags that apply post-processing to the softmax distribution:
+  - Temperature: --temperature FLOAT
+    - Applies softmax with temperature t (default 1.0).
+  - Allow-only: --allow_only "comma,separated,tokens"
+    - Masks all tokens except the listed ones, then renormalizes.
+  - Ban tokens: --ban_tokens "comma,separated,tokens"
+    - Masks listed tokens (probability set to 0), then renormalizes.
+  - Exclude pad: --exclude_pad --pad_token "<pad>"
+    - Removes the pad token (by string name) from the distribution.
+  - Minimum probability: --min_prob FLOAT
+    - Zeros out probabilities below threshold, then renormalizes.
+- Notes:
+  - Token names must match entries in the vocab file used by the embedding layer.
+  - Unknown tokens map to the <unk> id; banning <unk> is allowed.
+  - Renormalization occurs only if total remaining mass > 0; otherwise the raw distribution is returned unchanged.

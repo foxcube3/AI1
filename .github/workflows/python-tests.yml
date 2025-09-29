@@ -62,11 +62,17 @@ jobs:
         run: |
           python examples/infer_next_token.py --text "Allen allows" --head ci_head.json --merges ci_bpe_merges.txt --vocab ci_bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --top_k 5
 
+      - name: Smoke test train-then-chatbot (single turn via stdin)
+        run: |
+          echo "Hello from CI" | python examples/train_then_chatbot.py --corpus allen.txt --merges ci_bpe_merges.txt --vocab ci_bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head ci_head_chat.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+
       - name: Upload trained head artifact
         uses: actions/upload-artifact@v4
         with:
           name: trained-head-${{ matrix.python-version }}
-          path: ci_head.json
+          path: |
+            ci_head.json
+            ci_head_chat.json
 
       - name: Benchmark grid (quick)
         run: |
