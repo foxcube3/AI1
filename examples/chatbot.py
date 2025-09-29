@@ -203,9 +203,25 @@ class Chatbot:
         ban_tokens: Optional[Set[str]] = None,
         exclude_pad_token: Optional[str] = None,
         min_prob: float = 0.0,
+        no_repeat_ngram_size: int = 0,
+        ban_immediate_repeat: bool = False,
     ) -> List[str]:
         tokens = list(prompt_tokens)
         V = len(self.inv_vocab)
+
+        def violates_no_repeat(candidate: str) -> bool:
+            n = int(no_repeat_ngram_size)
+            if n <= 0:
+                return False
+            # Candidate n-gram is last n-1 tokens + candidate
+            if len(tokens) < n - 1:
+                return False
+            cand_ngram = tokens[-(n - 1):] + [candidate]
+            # Scan history for the same contiguous n-gram
+            for i in range(len(tokens) - n + 1):
+                if tokens[i : i + n] == cand_ngram:
+                    return True
+            return False
 
         if stream:
             initial = self.tok.decode(prompt_tokens)
@@ -222,14 +238,66 @@ class Chatbot:
                 exclude_pad_token=exclude_pad_token,
                 min_prob=min_prob,
             )
-            if greedy:
-                next_id = max(range(len(probs)), key=lambda i: probs[i])
-            else:
-                if top_p and top_p > 0.0:
-                    next_id = _sample_from_top_p(probs, p=top_p, rng=self._rng)
+
+            # Choose a candidate id
+            def pick_candidate() -> int:
+                if greedy:
+                    idxs = sorted(range(len(probs)), key=lambda i: probs[i], reverse=True)
                 else:
-                    next_id = _sample_from_top_k(probs, min(top_k, V), self._rng)
+                    if top_p and top_p > 0.0:
+                        # Build nucleus set deterministically by prob order
+                        idxs_sorted = sorted(range(len(probs)), key=lambda i: probs[i], reverse=True)
+                        nucleus = []
+                        acc = 0.0
+                        for j in idxs_sorted:
+                            nucleus.append(j)
+                            acc += probs[j]
+                            if acc >= top_p:
+                                break
+                        # Sample within nucleus
+                        mass = sum(probs[j] for j in nucleus) or 1.0
+                        renorm = [probs[j] / mass for j in nucleus]
+                        r = self._rng.random()
+                        c = 0.0
+                        for j, q in zip(nucleus, renorm):
+                            c += q
+                            if r <= c:
+                                return j
+                        return nucleus[-1]
+                    else:
+                        # Sample from top-k, but we'll allow fallback if constraints violate
+                        return _sample_from_top_k(probs, min(max(1, top_k), V), self._rng)
+
+                # Greedy or fallback iteration over sorted candidates
+                for j in idxs:
+                    return j
+                return 0
+
+            # Initial pick
+            next_id = pick_candidate()
             next_tok = self.inv_vocab.get(next_id, "<unk>")
+
+            # Constraint checks and fallback search
+            def violates(candidate: str) -> bool:
+                if ban_immediate_repeat and tokens and candidate == tokens[-1]:
+                    return True
+                if violates_no_repeat(candidate):
+                    return True
+                return False
+
+            if violates(next_tok):
+                # Try alternatives in descending probability order
+                idxs = sorted(range(len(probs)), key=lambda i: probs[i], reverse=True)
+                chosen = None
+                for j in idxs:
+                    t = self.inv_vocab.get(j, "<unk>")
+                    if not violates(t):
+                        chosen = (j, t)
+                        break
+                if chosen is not None:
+                    next_id, next_tok = chosen  # use best non-violating
+                # else keep original choice
+
             tokens.append(next_tok)
             if stream:
                 print(next_tok, end=" ", flush=True)
@@ -252,6 +320,8 @@ class Chatbot:
         ban_tokens: Optional[Set[str]] = None,
         exclude_pad_token: Optional[str] = None,
         min_prob: float = 0.0,
+        no_repeat_ngram_size: int = 0,
+        ban_immediate_repeat: bool = False,
     ) -> str:
         prompt_text = " ".join(history + [f"User: {user_message}", "Assistant:"])
         prompt_toks = self.tok.encode(prompt_text)
@@ -268,6 +338,8 @@ class Chatbot:
             ban_tokens=ban_tokens,
             exclude_pad_token=exclude_pad_token,
             min_prob=min_prob,
+            no_repeat_ngram_size=no_repeat_ngram_size,
+            ban_immediate_repeat=ban_immediate_repeat,
         )
         new_toks = out_tokens[len(prompt_toks):]
         reply = self.tok.decode(new_toks).strip()
@@ -303,6 +375,9 @@ def main() -> None:
     parser.add_argument("--exclude_pad", action="store_true", help="Exclude pad token by name provided via --pad_token.")
     parser.add_argument("--pad_token", type=str, default="", help="Pad token string to exclude when --exclude_pad is set.")
     parser.add_argument("--min_prob", type=float, default=0.0, help="Minimum probability threshold; lower values zeroed then renormalized.")
+    # Repetition controls
+    parser.add_argument("--no_repeat_ngram_size", type=int, default=0, help="Disallow repeating contiguous n-grams of this size (0 disables).")
+    parser.add_argument("--ban_immediate_repeat", action="store_true", help="Disallow immediately repeating the last generated token.")
     args = parser.parse_args()
 
     # Apply decoding presets
@@ -319,6 +394,10 @@ def main() -> None:
             args.pad_token = "<pad>"
         if args.min_prob <= 0.0:
             args.min_prob = 0.0
+        # Repetition controls for cleaner output
+        if args.no_repeat_ngram_size <= 0:
+            args.no_repeat_ngram_size = 3
+        args.ban_immediate_repeat = True
     elif args.preset == "balanced":
         args.greedy = False
         args.temperature = 0.9
@@ -332,6 +411,10 @@ def main() -> None:
             args.pad_token = "<pad>"
         if args.min_prob <= 0.0:
             args.min_prob = 0.001
+        # Mild repetition control
+        if args.no_repeat_ngram_size <= 0:
+            args.no_repeat_ngram_size = 3
+        args.ban_immediate_repeat = True
     elif args.preset == "creative":
         args.greedy = False
         args.temperature = 1.1
@@ -340,6 +423,9 @@ def main() -> None:
         if not args.ban_tokens.strip():
             args.ban_tokens = "<unk>"
         # leave exclude_pad/min_prob unchanged for maximum diversity
+        # Optional light repetition control
+        if args.no_repeat_ngram_size <= 0:
+            args.no_repeat_ngram_size = 2
 
     bot = Chatbot(
         merges_path=args.merges,
@@ -381,6 +467,8 @@ def main() -> None:
                 ban_tokens=ban_tokens,
                 exclude_pad_token=exclude_pad_token,
                 min_prob=args.min_prob,
+                no_repeat_ngram_size=args.no_repeat_ngram_size,
+                ban_immediate_repeat=args.ban_immediate_repeat,
             )
             print(f"Assistant: {reply}")
             history.append(f"User: {user}")
