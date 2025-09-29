@@ -84,6 +84,7 @@ Repository contents
 - examples/example_transformer_encoder.py — End-to-end example running a Transformer encoder on embedded tokens.
 - examples/train_and_embed.py — One-shot pipeline: train BPE then embed text.
 - examples/benchmark_transformer.py — Pure-Python benchmark utility for the Transformer encoder.
+- examples/benchmark_transformer_grid.py — Compare masked vs unmasked forward times across lengths.
 - tests/test_bpe.py — Unit tests for BPETokenizer.
 - tests/test_embedding.py — Unit tests for EmbeddingLayer.
 - tests/test_positional.py — Unit tests for positional encoding.

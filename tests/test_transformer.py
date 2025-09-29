@@ -225,6 +225,45 @@ class TestTransformerEncoder(unittest.TestCase):
          with self.assertRaises(ValueError):
              generate_causal_mask(-1)
 
+     def test_padding_and_causal_padding_masks(self):
+         from transformer_blocks import generate_padding_mask, generate_causal_padding_mask, generate_causal_masks_from_lengths
+
+         # padding-only mask
+         m = generate_padding_mask(seq_len=5, valid_len=3)
+         expected = [
+             [1, 1, 1, 0, 0],
+             [1, 1, 1, 0, 0],
+             [1, 1, 1, 0, 0],
+             [0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0],
+         ]
+         self.assertEqual(m, [[float(v) for v in row] for row in expected])
+
+         # causal+padding
+         mc = generate_causal_padding_mask(seq_len=5, valid_len=3)
+         expected_c = [
+             [1, 0, 0, 0, 0],
+             [1, 1, 0, 0, 0],
+             [1, 1, 1, 0, 0],
+             [0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0],
+         ]
+         self.assertEqual(mc, [[float(v) for v in row] for row in expected_c])
+
+         # lengths helper
+         masks = generate_causal_masks_from_lengths([0, 2, 3])
+         self.assertEqual(len(masks), 3)
+         self.assertEqual(len(masks[0]), 3)  # max length
+         self.assertEqual(len(masks[0][0]), 3)
+         # first mask with length 0 should be all zeros
+         self.assertTrue(all(all(v == 0.0 for v in row) for row in masks[0]))
+
+         # invalid args
+         with self.assertRaises(ValueError):
+             generate_padding_mask(3, 4)
+         with self.assertRaises(ValueError):
+             generate_causal_padding_mask(3, -1)
+
 
  if __name__ == "__main__":
      unittest.main()

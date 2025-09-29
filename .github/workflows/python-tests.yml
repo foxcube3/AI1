@@ -54,6 +54,10 @@ jobs:
         run: |
           python examples/example_transformer_encoder.py --merges ci_bpe_merges.txt --vocab ci_bpe_vocab.json --text "Allen allows ample analysis" --dim 16 --layers 2 --heads 4 --ff 32 --add_pe
 
+      - name: Benchmark grid (quick)
+        run: |
+          python examples/benchmark_transformer_grid.py --seq_grid "8,16" --dim 16 --heads 4 --layers 1 --ff 32 --repeats 1
+
       - name: Build distributions
         run: |
           python -m build

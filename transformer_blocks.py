@@ -157,6 +157,61 @@ def generate_causal_mask(seq_len: int) -> List[List[float]]:
     return [[1.0 if j <= i else 0.0 for j in range(seq_len)] for i in range(seq_len)]
 
 
+def generate_padding_mask(seq_len: int, valid_len: int) -> List[List[float]]:
+    """
+    Generate a padding mask of shape [seq_len x seq_len].
+    Positions i or j that are >= valid_len are masked (0.0).
+    """
+    if seq_len < 0 or valid_len < 0:
+        raise ValueError("seq_len and valid_len must be non-negative")
+    if valid_len > seq_len:
+        raise ValueError("valid_len cannot exceed seq_len")
+    mask: List[List[float]] = []
+    for i in range(seq_len):
+        row: List[float] = []
+        for j in range(seq_len):
+            row.append(1.0 if (i < valid_len and j < valid_len) else 0.0)
+        mask.append(row)
+    return mask
+
+
+def generate_causal_padding_mask(seq_len: int, valid_len: int) -> List[List[float]]:
+    """
+    Generate a combined causal + padding mask [seq_len x seq_len]:
+    - Lower triangular (causal): j <= i
+    - Padding: i < valid_len and j < valid_len
+    """
+    if seq_len < 0 or valid_len < 0:
+        raise ValueError("seq_len and valid_len must be non-negative")
+    if valid_len > seq_len:
+        raise ValueError("valid_len cannot exceed seq_len")
+    mask: List[List[float]] = []
+    for i in range(seq_len):
+        row: List[float] = []
+        for j in range(seq_len):
+            allowed = (i < valid_len) and (j < valid_len) and (j <= i)
+            row.append(1.0 if allowed else 0.0)
+        mask.append(row)
+    return mask
+
+
+def generate_causal_masks_from_lengths(lengths: Sequence[int]) -> List[List[List[float]]]:
+    """
+    Convenience helper for batched scenarios: given a list of valid lengths,
+    return a list of [L x L] causal+padding masks (with each L = max(lengths)).
+    Each mask 'm' masks out positions >= len as padding, and is causal within the valid region.
+    """
+    if not lengths:
+        return []
+    if any(l < 0 for l in lengths):
+        raise ValueError("lengths must be non-negative")
+    L = max(lengths)
+    masks: List[List[List[float]]] = []
+    for l in lengths:
+        masks.append(generate_causal_padding_mask(L, l))
+    return masks
+
+
 def _init_matrix(rows: int, cols: int, rng: random.Random, scheme: str) -> List[List[float]]:
     s = scheme.lower()
     if s == "zeros":
