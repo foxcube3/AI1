@@ -255,6 +255,15 @@ def build_flags_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> 
     return [t == pad_token for t in tokens]
 
 
+def make_causal_mask_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[List[float]]:
+    """
+    Convenience: build a causal+padding mask directly from a token sequence.
+    Positions equal to pad_token are treated as padding (masked).
+    """
+    flags = build_flags_from_tokens(tokens, pad_token=pad_token)
+    return generate_causal_padding_mask_from_flags(flags)
+
+
 def _init_matrix(rows: int, cols: int, rng: random.Random, scheme: str) -> List[List[float]]:
     s = scheme.lower()
     if s == "zeros":

@@ -275,6 +275,12 @@ class TestTransformerEncoder(unittest.TestCase):
          flags2 = build_flags_from_tokens(tokens2, pad_token="<x>")
          self.assertEqual(flags2, [False, False, True, True])
 
+         # make causal mask directly from tokens should match causal mask from flags
+         from transformer_blocks import make_causal_mask_from_tokens
+         mc_from_tokens = make_causal_mask_from_tokens(tokens)
+         mc_from_flags = generate_causal_padding_mask_from_flags(flags_from_tokens)
+         self.assertEqual(mc_from_tokens, mc_from_flags)
+
          # lengths helper
          masks = generate_causal_masks_from_lengths([0, 2, 3])
          self.assertEqual(len(masks), 3)

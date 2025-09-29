@@ -328,6 +328,9 @@ Per-position layer normalization. Callable on sequences X: List[List[float]] wit
 #### generate_causal_masks_from_lengths(lengths: Sequence[int]) -> List[List[List[float]]]
 - Convenience to create a batch of [L x L] causal+padding masks where L = max(lengths).
 
+#### make_causal_mask_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[List[float]]
+- Directly produce a causal+padding mask from a token sequence, masking positions equal to pad_token.
+
 <a id="license"></a>
 License
 - MIT or your preferred license (update as needed).
