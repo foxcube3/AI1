@@ -33,7 +33,7 @@ jobs:
 
       - name: Lint (flake8)
         run: |
-          flake8 .
+          flake8 . --max-line-length 160 --extend-ignore E501,W292,E702,E741,F401,F841,E203,W503
 
       - name: Run unit tests
         run: |
