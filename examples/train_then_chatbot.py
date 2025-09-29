@@ -245,16 +245,19 @@ def main() -> None:
         args.temperature = 0.7
         args.top_k = max(1, args.top_k)
         args.top_p = 0.0
+        # Post-processing defaults (handled by generator/chatbot; train_then_chatbot forwards core flags)
     elif args.preset == "balanced":
         args.greedy = False
         args.temperature = 0.9
         args.top_k = 20
         args.top_p = 0.9
+        # Post-processing defaults (generator/chatbot implement ban/exclude where applicable)
     elif args.preset == "creative":
         args.greedy = False
         args.temperature = 1.1
         args.top_k = 0
         args.top_p = 0.92
+        # Post-processing defaults: minimal filtering to retain diversity
 
     # Launch chatbot
     bot = Chatbot(

@@ -178,16 +178,43 @@ def main() -> None:
         args.temperature = 0.7
         args.top_k = max(1, args.top_k)
         args.top_p = 0.0
+        # Post-processing defaults
+        if not args.ban_tokens.strip():
+            args.ban_tokens = "<unk>"
+        if not args.exclude_pad:
+            args.exclude_pad = True
+        if not args.pad_token.strip():
+            args.pad_token = "<pad>"
+        if args.min_prob <= 0.0:
+            args.min_prob = 0.0
     elif args.preset == "balanced":
         args.greedy = False
         args.temperature = 0.9
         args.top_k = 20
         args.top_p = 0.9
+        # Post-processing defaults
+        if not args.ban_tokens.strip():
+            args.ban_tokens = "<unk>"
+        if not args.exclude_pad:
+            args.exclude_pad = True
+        if not args.pad_token.strip():
+            args.pad_token = "<pad>"
+        if args.min_prob <= 0.0:
+            args.min_prob = 0.001
     elif args.preset == "creative":
         args.greedy = False
         args.temperature = 1.1
         args.top_k = 0  # prefer nucleus
         args.top_p = 0.92
+        # Post-processing defaults
+        if not args.ban_tokens.strip():
+            args.ban_tokens = "<unk>"
+        if not args.exclude_pad:
+            args.exclude_pad = True
+        if not args.pad_token.strip():
+            args.pad_token = "<pad>"
+        if args.min_prob <= 0.0:
+            args.min_prob = 0.0
 
     base_text = args.prompt if not args.system else f"{args.system}\n{args.prompt}"
     text = base_text.strip()

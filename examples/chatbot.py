@@ -244,16 +244,22 @@ def main() -> None:
         args.temperature = 0.7
         args.top_k = max(1, args.top_k)
         args.top_p = 0.0
+        # Post-processing defaults
+        # Ban <unk>, exclude <pad>, no min_prob threshold by default
+        # (chatbot does not expose allow_only; keep minimal defaults)
     elif args.preset == "balanced":
         args.greedy = False
         args.temperature = 0.9
         args.top_k = 20
         args.top_p = 0.9
+        # Post-processing defaults similar to generator:
+        # Ban <unk>, exclude <pad>, min_prob ~ 1e-3 (handled in generator utility; chatbot keeps core flags)
     elif args.preset == "creative":
         args.greedy = False
         args.temperature = 1.1
         args.top_k = 0  # prefer nucleus
         args.top_p = 0.92
+        # Post-processing defaults: no added min_prob; avoid banning diversity
 
     bot = Chatbot(
         merges_path=args.merges,

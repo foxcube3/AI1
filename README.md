@@ -952,8 +952,11 @@ Recommended decoding settings
   - Use for brainstorming or exploratory generation; higher variance.
 
 Notes
-- Presets override individual decoding flags if provided.
-- You can still fine-tune afterwards (e.g., pass --temperature to tweak).
+- Presets override individual decoding flags if provided; you can still fine-tune afterwards (e.g., pass --temperature).
+- Post-processing defaults by preset:
+  - Deterministic: bans <unk>, excludes <pad>, no min_prob threshold (generator: --ban_tokens "<unk>" --exclude_pad --pad_token "<pad>")
+  - Balanced: bans <unk>, excludes <pad>, sets small min_prob (generator: --min_prob 0.001)
+  - Creative: minimal filtering (no min_prob), keep diversity
 - For streaming UX, add --stream to echo tokens as they’re generated.
 
 <a id="license"></a>
