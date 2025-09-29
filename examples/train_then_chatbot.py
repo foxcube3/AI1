@@ -87,9 +87,12 @@ def main() -> None:
     parser.add_argument("--max_new_tokens", type=int, default=32, help="Generation length per turn.")
     parser.add_argument("--temperature", type=float, default=0.9, help="Softmax temperature.")
     parser.add_argument("--top_k", type=int, default=20, help="Top-k sampling.")
+    parser.add_argument("--top_p", type=float, default=0.0, help="Nucleus (top-p) sampling cutoff; 0 disables.")
     parser.add_argument("--stop_token", type=str, default="", help="Optional token that stops generation, e.g., '<eos>'.")
     parser.add_argument("--system", type=str, default="", help="Optional system prompt that prefixes the conversation.")
     parser.add_argument("--greedy", action="store_true", help="Use greedy decoding instead of sampling.")
+    parser.add_argument("--stream", action="store_true", help="Stream tokens as they are generated.")
+    parser.add_argument("--preset", type=str, default="", choices=["deterministic", "balanced", "creative"], help="Decoding preset: deterministic|balanced|creative.")
     parser.add_argument(
         "--stdin",
         action="store_true",
@@ -236,6 +239,26 @@ def main() -> None:
         json.dump({"dim": args.dim, "vocab_size": vocab_size, "W_out": W_out, "b_out": b_out}, f)
     print(f"Saved head to {head_path}")
 
+    # Apply decoding presets (override flags for generation)
+    if args.preset == "deterministic":
+        args.greedy = True
+        args.temperature = 0.7
+        args.top_k = max(1, args.top_k)
+        args.top_p = 0.0
+        # Post-processing defaults (handled by generator/chatbot; train_then_chatbot forwards core flags)
+    elif args.preset == "balanced":
+        args.greedy = False
+        args.temperature = 0.9
+        args.top_k = 20
+        args.top_p = 0.9
+        # Post-processing defaults (generator/chatbot implement ban/exclude where applicable)
+    elif args.preset == "creative":
+        args.greedy = False
+        args.temperature = 1.1
+        args.top_k = 0
+        args.top_p = 0.92
+        # Post-processing defaults: minimal filtering to retain diversity
+
     # Launch chatbot
     bot = Chatbot(
         merges_path=args.merges,
@@ -278,6 +301,8 @@ def main() -> None:
             top_k=args.top_k,
             stop_token=stop_tok,
             greedy=args.greedy,
+            top_p=args.top_p,
+            stream=args.stream,
         )
         print(f"Assistant: {reply}")
         return
@@ -302,6 +327,8 @@ def main() -> None:
                 top_k=args.top_k,
                 stop_token=stop_tok,
                 greedy=args.greedy,
+                top_p=args.top_p,
+                stream=args.stream,
             )
             print(f"Assistant: {reply}")
             history.append(f"User: {user}")

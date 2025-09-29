@@ -6,12 +6,17 @@ Table of Contents
 - [Features](#features)
 - [Repository contents](#repository-contents)
 - [Requirements](#requirements)
+- [Installation](#installation)
 - [Quick start](#quick-start)
 - [Examples](#examples)
   - [Post-processing (inference) — quick reference](#post-processing-inference-quick-reference)
   - [Chatbot usage](#chatbot-usage)
   - [Single-turn chatbot quick runs](#single-turn-chatbot)
+  - [End-to-end: Tokenizer + Embedding + Encoder](#end-to-end-encoder)
+  - [Positional encodings in the encoder](#pe-in-encoder)
 - [Simple training (next-token head)](#simple-training-next-token-head)
+  - [End-to-end: next-token head](#end-to-end-next-token-head)
+  - [Sequence generation (iterative decoding)](#sequence-generation)
 - [API Reference](#api-reference)
   - [BPETokenizer](#bpetokenizer)
     - [train](#bpetokenizer-train)
@@ -37,8 +42,20 @@ Table of Contents
     - [encode](#learnedpositionalembedding-encode)
     - [add_to](#learnedpositionalembedding-add-to)
   - [Inference Post-processing](#api-inference-post-processing)
+  - [Transformer Blocks](#transformer-blocks)
+    - [LayerNorm](#layernorm)
+    - [MultiHeadSelfAttention](#multiheadselfattention)
+    - [PositionwiseFeedForward](#positionwisefeedforward)
+    - [TransformerEncoderLayer](#transformerencoderlayer)
+    - [TransformerEncoder](#transformerencoder)
+    - [Mask utilities](#mask-utilities)
 - [Development](#development)
+  - [Testing](#testing)
+  - [Linting](#linting)
+  - [Building and publishing](#building-and-publishing)
 - [CI](#ci)
+- [Contributing](#contributing)
+- [Troubleshooting](#troubleshooting)
 - [License](#license)
 
 <a id="overview"></a>
@@ -86,24 +103,39 @@ Repository contents
 - examples/example_embed.py — Load tokenizer + vocab, build embedding layer, and embed text.
 - examples/example_embed_with_pe.py — Embed text and add sinusoidal positional encodings.
 - examples/example_embed_with_learned_pe.py — Embed text and add learned positional embeddings.
+- examples/example_learned_pe_persist.py — Demonstrate saving/loading learned positional embedding weights.
 - examples/example_transformer_encoder.py — End-to-end example running a Transformer encoder on embedded tokens.
 - examples/train_and_embed.py — One-shot pipeline: train BPE then embed text.
 - examples/train_next_token_head.py — Train a next-token linear head on top of the frozen Transformer encoder.
 - examples/infer_next_token.py — Inference utility for the trained next-token head.
 - examples/train_then_infer.py — Train a next-token head and immediately run inference.
 - examples/train_then_chatbot.py — Train a next-token head and launch the console chatbot in one command.
+- examples/generate_sequence.py — CLI for iterative sequence generation with greedy or top-k sampling.
 - examples/benchmark_transformer.py — Pure-Python benchmark utility for the Transformer encoder.
 - examples/benchmark_transformer_grid.py — Compare masked vs unmasked forward times across lengths.
 - tests/test_bpe.py — Unit tests for BPETokenizer.
 - tests/test_embedding.py — Unit tests for EmbeddingLayer.
 - tests/test_positional.py — Unit tests for positional encoding.
 - tests/test_transformer.py — Unit tests for Transformer blocks and masks.
+- tests/test_next_token_pipeline.py — Smoke test for training and inference pipeline.
+- tests/test_train_then_chatbot.py — Smoke test for single-turn chatbot training + run.
 - pyproject.toml — Packaging metadata and lint configuration (ruff + flake8).
-- .github/workflows/python-tests.yml — CI workflow.
+- .github/workflows/python-tests.yml — Default CI workflow.
+- .github/workflows/manual-terminal.yml — On-demand terminal runner workflow.
+- .github/workflows/manual-ci.yml — On-demand full CI workflow.
 
 <a id="requirements"></a>
 Requirements
 - Python 3.8+ (no external dependencies)
+
+<a id="installation"></a>
+Installation
+- From PyPI:
+  - pip install bpe-tokenizer-embedding
+- From source (editable):
+  - git clone https://github.com/OWNER/REPO.git
+  - cd REPO
+  - pip install -e .
 
 <a id="quick-start"></a>
 Quick start
@@ -198,6 +230,70 @@ Examples
 - Console chatbot (uses trained head): examples/chatbot.py
   - Train a head first (see examples/train_next_token_head.py), then:
     - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20
+  - With nucleus sampling (top-p) and streaming:
+    - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --top_p 0.9 --stream
+  - Post-processing examples:
+    - Allow only a set of tokens:
+      - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20 --allow_only "Allen,analysis"
+    - Ban unknown and pad tokens:
+      - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --top_p 0.9 --ban_tokens "<unk>,<pad>" --exclude_pad --pad_token "<pad>"
+  - With presets (one-click wrappers):
+    - Balanced:
+      - ./examples/run_chat_balanced.sh head.json
+    - Deterministic:
+      - ./examples/run_chat_deterministic.sh head.json
+    - Creative:
+      - ./examples/run_chat_creative.sh head.json --stream
+- One-click sequence generation:
+  - Balanced:
+    - ./examples/run_generate_balanced.sh "Allen allows" head.json --out out.txt --jsonl gen.jsonl
+- Sequence generation (iterative decoding): examples/generate_sequence.py
+  - Greedy:
+    - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --greedy --max_new_tokens 16 --stop_token "<eos>"
+  - Top-k sampling:
+    - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_k 10 --temperature 0.9 --max_new_tokens 16
+  - Optional outputs:
+    - Write final text to a file:
+      - --out out.txt
+    - Write per-step JSON logs (JSON Lines format):
+      - --jsonl gen_log.jsonl
+    - Include full probability distribution per step (large):
+      - --jsonl_include_all
+  - Length caps:
+    - Hard cap total tokenized length (prompt + generated):
+      - --max_total_tokens 128
+    - Hard cap total character length (prompt + generated):
+      - --max_total_chars 500
+  - Decoding strategies:
+    - Greedy:
+      - --greedy
+    - Top-k sampling:
+      - --top_k 10 --temperature 0.9
+    - Nucleus (top-p) sampling:
+      - --top_p 0.9  (uses the smallest set of tokens whose cumulative probability ≥ p)
+    - Streaming tokens:
+      - --stream  (prints tokens to stdout as they are generated)
+  - Post-processing (generator and chatbot):
+    - Allow-only:
+      - --allow_only "tok1,tok2"
+    - Ban tokens:
+      - --ban_tokens "<unk>,<pad>"
+    - Exclude pad by name:
+      - --exclude_pad --pad_token "<pad>"
+    - Minimum probability threshold:
+      - --min_prob 0.001
+    - Examples:
+      - Allow only a set of tokens:
+        - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_k 10 --temperature 0.9 --allow_only "Allen,analysis"
+      - Ban unknown and pad tokens:
+        - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_p 0.9 --ban_tokens "<unk>,<pad>" --exclude_pad --pad_token "<pad>"
+  - Presets:
+    - Deterministic:
+      - --preset deterministic  (greedy, temperature≈0.7; bans <unk>, excludes <pad>)
+    - Balanced:
+      - --preset balanced      (temperature≈0.9, top_k=20, top_p≈0.9; bans <unk>, excludes <pad>, min_prob≈1e-3)
+    - Creative:
+      - --preset creative      (temperature≈1.1, prefers top-p≈0.92; minimal filtering)
 
 <a id="chatbot-usage"></a>
 Chatbot usage
@@ -302,6 +398,189 @@ Single-turn chatbot quick runs (clean output)
   - Force stdin mode:
     - echo "Hello there" | python examples/train_then_chatbot.py --stdin --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
 
+<a id="end-to-end-next-token-head"></a>
+End-to-end: next-token head (train then generate)
+- This example trains a small next-token linear head on top of a frozen Transformer encoder, then generates the next token probabilities and samples output tokens.
+
+Train a head:
+```bash
+python examples/train_next_token_head.py \
+  --corpus allen.txt \
+  --merges bpe_merges.txt --vocab bpe_vocab.json \
+  --dim 32 --layers 2 --heads 4 --ff 64 \
+  --seq_len 32 --stride 32 --epochs 3 --lr 0.01 \
+  --add_pe \
+  --save_head head.json
+```
+
+Run inference and sample tokens:
+```bash
+# Basic inference with top-k sampling and temperature
+python examples/infer_next_token.py \
+  --text "Allen allows" \
+  --head head.json \
+  --merges bpe_merges.txt --vocab bpe_vocab.json \
+  --dim 32 --layers 2 --heads 4 --ff 64 \
+  --add_pe \
+  --top_k 10 \
+  --temperature 0.8
+```
+
+Programmatic outline:
+```python
+import json
+from bpe_tokenizer import BPETokenizer
+from embedding import EmbeddingLayer
+from positional_encoding import SinusoidalPositionalEncoding
+from transformer_blocks import TransformerEncoder, make_causal_mask_from_tokens
+
+# Load tokenizer and vocab
+tok = BPETokenizer(); tok.load("bpe_merges.txt", "bpe_vocab.json")
+emb = EmbeddingLayer.from_vocab_file("bpe_vocab.json", dim=32, seed=42)
+
+# Build frozen encoder
+enc = TransformerEncoder(num_layers=2, dim=32, num_heads=4, ff_hidden=64, seed=123)
+
+# Input text
+text = "Allen allows"
+tokens = tok.encode(text)
+ids = emb.tokens_to_ids(tokens)
+X = emb.embed_ids(ids)
+
+# Optional positional encoding
+pe = SinusoidalPositionalEncoding(dim=32)
+X_pe = pe.add_to(X)
+
+# Causal+padding mask
+mask = make_causal_mask_from_tokens(tokens)
+
+# Forward through encoder
+H = enc(X_pe, mask=mask)  # [T x 32], use the last position for next-token prediction
+
+# Load trained head weights
+with open("head.json", "r", encoding="utf-8") as f:
+    head = json.load(f)
+W_out = head["W_out"]  # [dim x vocab_size]
+b_out = head["b_out"]  # [vocab_size]
+
+# Compute logits for the last position (pure Python matvec)
+last = H[-1]
+logits = [sum(last[i] * W_out[i][j] for i in range(len(last))) + b_out[j] for j in range(len(b_out))]
+
+# Softmax with temperature
+import math
+T = 0.8
+m = max(logits)
+probs = [math.exp((x - m) / T) for x in logits]
+s = sum(probs)
+probs = [p / s for p in probs]
+
+# Sample top-k
+k = 10
+top_idx = sorted(range(len(probs)), key=lambda j: probs[j], reverse=True)[:k]
+# Renormalize within top-k
+top_mass = sum(probs[j] for j in top_idx)
+top_probs = [probs[j] / top_mass for j in top_idx]
+
+import random
+j = random.choices(top_idx, weights=top_probs, k=1)[0]
+
+# Map back to token
+# Build reverse vocab
+import json
+with open("bpe_vocab.json", "r", encoding="utf-8") as f:
+    vocab = json.load(f)
+id_to_token = {i: t for t, i in vocab.items()}
+token_out = id_to_token.get(j, "<unk>")
+print("Sampled next token:", token_out)
+```
+
+<a id="sequence-generation"></a>
+Sequence generation (iterative decoding)
+- Generate multiple tokens by iteratively:
+  1) Encoding the growing text
+  2) Embedding + optional positional encoding
+  3) Forwarding through the frozen encoder
+  4) Predicting next token with the trained head
+  5) Appending the sampled token to the text and repeating until a stop condition.
+
+Greedy decoding:
+```python
+import json, math
+from bpe_tokenizer import BPETokenizer
+from embedding import EmbeddingLayer
+from positional_encoding import SinusoidalPositionalEncoding
+from transformer_blocks import TransformerEncoder, make_causal_mask_from_tokens
+
+# Setup
+tok = BPETokenizer(); tok.load("bpe_merges.txt", "bpe_vocab.json")
+emb = EmbeddingLayer.from_vocab_file("bpe_vocab.json", dim=32, seed=42)
+enc = TransformerEncoder(num_layers=2, dim=32, num_heads=4, ff_hidden=64, seed=123)
+pe = SinusoidalPositionalEncoding(dim=32)
+
+with open("head.json", "r", encoding="utf-8") as f:
+    head = json.load(f)
+W_out, b_out = head["W_out"], head["b_out"]
+
+id_to_token = {i: t for t, i in json.load(open("bpe_vocab.json", "r", encoding="utf-8")).items()}
+
+def logits_for_text(text: str):
+    tokens = tok.encode(text)
+    X = emb.embed_tokens(tokens)
+    X_pe = pe.add_to(X)
+    H = enc(X_pe, mask=make_causal_mask_from_tokens(tokens))
+    h_last = H[-1]
+    logits = [sum(h_last[i] * W_out[i][j] for i in range(len(h_last))) + b_out[j] for j in range(len(b_out))]
+    return tokens, logits
+
+text = "Allen allows"
+max_new = 16
+stop_token = "<eos>"
+
+for _ in range(max_new):
+    tokens, logits = logits_for_text(text)
+    # Greedy: argmax
+    j = max(range(len(logits)), key=lambda idx: logits[idx])
+    next_tok = id_to_token.get(j, "<unk>")
+    if next_tok == stop_token:
+        break
+    # Append to text (best-effort with a space)
+    text = (text + " " + next_tok).strip()
+
+print("Final text:", tok.decode(tok.encode(text)))
+```
+
+Top-k sampling with temperature:
+```python
+import random, math
+
+def sample_top_k(logits, k=10, temperature=0.8):
+    m = max(logits)
+    probs = [math.exp((x - m) / max(1e-6, temperature)) for x in logits]
+    s = sum(probs)
+    probs = [p / (s if s > 0 else 1.0) for p in probs]
+    top_idx = sorted(range(len(probs)), key=lambda j: probs[j], reverse=True)[:k]
+    mass = sum(probs[j] for j in top_idx)
+    weights = [probs[j] / (mass if mass > 0 else 1.0) for j in top_idx]
+    return random.choices(top_idx, weights=weights, k=1)[0]
+
+text = "Allen allows"
+for _ in range(16):
+    _, logits = logits_for_text(text)
+    j = sample_top_k(logits, k=10, temperature=0.9)
+    next_tok = id_to_token.get(j, "<unk>")
+    if next_tok in {"<eos>", "<pad>"}:
+        break
+    text = (text + " " + next_tok).strip()
+
+print("Generated:", tok.decode(tok.encode(text)))
+```
+
+Notes:
+- Detokenization is heuristic; tok.decode provides readable output but not exact reconstruction.
+- Ensure consistent hyperparameters between training and inference: dim, layers, heads, ff, and whether positional encoding was added.
+- Stop conditions can include max token count, encountering a special token (e.g., <eos>), or probability thresholds.
+
 <a id="post-processing-inference-quick-reference"></a>
 Post-processing (inference) — quick reference
 - These options modify the next-token probability distribution produced during inference:
@@ -336,8 +615,259 @@ API Reference — Inference Post-processing
     - Zeros out probabilities below threshold, then renormalizes.
 - Notes:
   - Token names must match entries in the vocab file used by the embedding layer.
-  - Unknown tokens map to the &lt;unk&gt; id; banning &lt;unk&gt; is allowed.
-  - Renormalization occurs only if total remaining mass &gt; 0; otherwise the raw distribution is returned unchanged.
+  - Unknown tokens map to the <unk> id; banning <unk> is allowed.
+  - Renormalization occurs only if total remaining mass > 0; otherwise the raw distribution is returned unchanged.
+
+<a id="transformer-blocks"></a>
+API Reference — Transformer Blocks
+- Pure-Python list-based linear algebra (no external dependencies). Sequences are [seq_len x dim].
+
+Type signatures (Python-style):
+```python
+from typing import List, Optional, Sequence
+
+class LayerNorm:
+    def __init__(self, dim: int, eps: float = 1e-5) -> None: ...
+    def __call__(self, X: Sequence[Sequence[float]]) -> List[List[float]]: ...
+
+class MultiHeadSelfAttention:
+    def __init__(self, dim: int, num_heads: int,
+                 *, seed: Optional[int] = None, init: str = "xavier_uniform") -> None: ...
+    def __call__(self, X: Sequence[Sequence[float]],
+                 mask: Optional[Sequence[Sequence[float]]] = None) -> List[List[float]]: ...
+
+class PositionwiseFeedForward:
+    def __init__(self, dim: int, hidden_dim: int,
+                 *, activation: str = "relu", seed: Optional[int] = None, init: str = "xavier_uniform") -> None: ...
+    def __call__(self, X: Sequence[Sequence[float]]) -> List[List[float]]: ...
+
+class TransformerEncoderLayer:
+    def __init__(self, dim: int, num_heads: int, ff_hidden: int,
+                 *, seed: Optional[int] = None, init: str = "xavier_uniform") -> None: ...
+    def __call__(self, X: Sequence[Sequence[float]],
+                 mask: Optional[Sequence[Sequence[float]]] = None) -> List[List[float]]: ...
+
+class TransformerEncoder:
+    def __init__(self, num_layers: int, dim: int, num_heads: int, ff_hidden: int,
+                 *, seed: Optional[int] = None, init: str = "xavier_uniform") -> None: ...
+    def __call__(self, X: Sequence[Sequence[float]],
+                 mask: Optional[Sequence[Sequence[float]]] = None) -> List[List[float]]: ...
+
+def generate_causal_mask(seq_len: int) -> List[List[float]]: ...
+def generate_padding_mask(seq_len: int, valid_len: int) -> List[List[float]]: ...
+def generate_causal_padding_mask(seq_len: int, valid_len: int) -> List[List[float]]: ...
+def generate_causal_masks_from_lengths(lengths: Sequence[int]) -> List[List[List[float]]]: ...
+def generate_padding_mask_from_flags(pad_flags: Sequence[bool]) -> List[List[float]]: ...
+def generate_causal_padding_mask_from_flags(pad_flags: Sequence[bool]) -> List[List[float]]: ...
+def build_flags_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[bool]: ...
+def make_causal_mask_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[List[float]]: ...
+def make_padding_mask_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[List[float]]: ...
+```
+
+<a id="layernorm"></a>
+LayerNorm
+- Purpose: Per-position layer normalization.
+- Behavior:
+  - y = (x - mean) / sqrt(var + eps) * gamma + beta
+  - Deterministic fallback for near-constant vectors to avoid division by zero.
+- Minimal example:
+```python
+from transformer_blocks import LayerNorm
+
+ln = LayerNorm(dim=8)
+X = [[0.1 * (i + j) for j in range(8)] for i in range(4)]
+Y = ln(X)  # shape [4 x 8]
+```
+
+<a id="multiheadselfattention"></a>
+MultiHeadSelfAttention
+- Purpose: Scaled dot-product attention with multi-head splitting.
+- Notes:
+  - dim must be divisible by num_heads.
+  - Uses W_q, W_k, W_v, W_o plus biases.
+- Minimal example:
+```python
+from transformer_blocks import MultiHeadSelfAttention, generate_causal_mask
+
+mha = MultiHeadSelfAttention(dim=16, num_heads=4, seed=42)
+X = [[0.01 * (i + j) for j in range(16)] for i in range(6)]
+mask = generate_causal_mask(len(X))  # optional
+Y = mha(X, mask=mask)  # shape [6 x 16]
+```
+
+<a id="positionwisefeedforward"></a>
+PositionwiseFeedForward
+- Purpose: Two-layer MLP with ReLU applied position-wise.
+- Minimal example:
+```python
+from transformer_blocks import PositionwiseFeedForward
+
+ffn = PositionwiseFeedForward(dim=16, hidden_dim=64, seed=1)
+X = [[0.02 * (i + j) for j in range(16)] for i in range(5)]
+Y = ffn(X)  # shape [5 x 16]
+```
+
+<a id="transformerencoderlayer"></a>
+TransformerEncoderLayer
+- Architecture (pre-norm residual):
+  - x = x + MHA(LN1(x))
+  - x = x + FFN(LN2(x))
+- Minimal example:
+```python
+from transformer_blocks import TransformerEncoderLayer, generate_causal_mask
+
+layer = TransformerEncoderLayer(dim=32, num_heads=4, ff_hidden=64, seed=123)
+X = [[0.01 * (i + j) for j in range(32)] for i in range(10)]
+mask = generate_causal_mask(len(X))
+Y = layer(X, mask=mask)  # shape [10 x 32]
+```
+
+<a id="transformerencoder"></a>
+TransformerEncoder
+- Stack of TransformerEncoderLayer blocks with deterministic per-layer seeds.
+- Minimal example:
+```python
+from transformer_blocks import TransformerEncoder, generate_causal_mask
+
+enc = TransformerEncoder(num_layers=3, dim=32, num_heads=4, ff_hidden=64, seed=7)
+X = [[0.01 * (i + j) for j in range(32)] for i in range(12)]
+mask = generate_causal_mask(len(X))
+Y = enc(X, mask=mask)  # shape [12 x 32]
+```
+
+<a id="mask-utilities"></a>
+Mask utilities
+- Quick examples:
+```python
+from transformer_blocks import (
+    generate_causal_mask,
+    generate_padding_mask,
+    generate_causal_padding_mask,
+    build_flags_from_tokens,
+    generate_padding_mask_from_flags,
+    generate_causal_padding_mask_from_flags,
+    make_causal_mask_from_tokens,
+    make_padding_mask_from_tokens,
+)
+
+L = 5
+causal = generate_causal_mask(L)
+padding = generate_padding_mask(seq_len=L, valid_len=3)
+causal_pad = generate_causal_padding_mask(seq_len=L, valid_len=3)
+
+tokens = ["hello", "world", "<pad>", "<pad>", "<pad>"]
+flags = build_flags_from_tokens(tokens)  # [False, False, True, True, True]
+pad_mask = generate_padding_mask_from_flags(flags)
+causal_pad_mask = generate_causal_padding_mask_from_flags(flags)
+
+causal_pad_from_tokens = make_causal_mask_from_tokens(tokens)
+pad_from_tokens = make_padding_mask_from_tokens(tokens)
+```
+
+<a id="end-to-end-encoder"></a>
+End-to-end quick start: Tokenizer + Embedding + Encoder
+- Minimal runnable snippet to go from raw text to encoder outputs.
+```python
+from bpe_tokenizer import BPETokenizer
+from embedding import EmbeddingLayer
+from positional_encoding import SinusoidalPositionalEncoding
+from transformer_blocks import TransformerEncoder, make_causal_mask_from_tokens
+
+# Load trained tokenizer (use your paths)
+tok = BPETokenizer(); tok.load("bpe_merges.txt", "bpe_vocab.json")
+
+# Encode text and build embeddings
+text = "Allen allows ample analysis"
+tokens = tok.encode(text)
+emb = EmbeddingLayer.from_vocab_file("bpe_vocab.json", dim=32, seed=42)
+X = emb.embed_tokens(tokens)
+
+# Optional sinusoidal positional encoding
+pe = SinusoidalPositionalEncoding(dim=32)
+X_pe = pe.add_to(X)
+
+# Build a simple encoder and a causal+padding mask directly from tokens
+enc = TransformerEncoder(num_layers=2, dim=32, num_heads=4, ff_hidden=64, seed=123)
+mask = make_causal_mask_from_tokens(tokens)  # '<pad>' tokens will be masked if present
+
+# Forward pass
+Y = enc(X_pe, mask=mask)
+print("Encoder output shape:", len(Y), "x", len(Y[0]))
+```
+
+<a id="pe-in-encoder"></a>
+Using positional encodings in the encoder
+- Sinusoidal vs learned positional encodings.
+
+Sinusoidal positional encoding:
+```python
+from positional_encoding import SinusoidalPositionalEncoding
+from transformer_blocks import TransformerEncoder
+
+# Assume X is [seq_len x dim] embeddings
+dim = 64
+pe = SinusoidalPositionalEncoding(dim=dim)
+X_with_pe = pe.add_to(X)  # offset=0 by default
+
+enc = TransformerEncoder(num_layers=3, dim=dim, num_heads=8, ff_hidden=256, seed=7)
+Y = enc(X_with_pe)  # optionally pass a mask
+```
+
+Learned positional embedding:
+```python
+from positional_encoding import LearnedPositionalEmbedding
+from transformer_blocks import TransformerEncoder
+
+# Assume X is [seq_len x dim] embeddings
+dim = 64
+seq_len = len(X)
+lpe = LearnedPositionalEmbedding(dim=dim, max_len=512, seed=1, init="xavier_uniform")
+X_with_lpe = lpe.add_to(X, offset=0)  # raises if seq_len exceeds max_len
+
+enc = TransformerEncoder(num_layers=3, dim=dim, num_heads=8, ff_hidden=256, seed=7)
+Y = enc(X_with_lpe)
+```
+
+Persisting and reloading learned positional embedding:
+```python
+from positional_encoding import LearnedPositionalEmbedding
+
+lpe = LearnedPositionalEmbedding(dim=64, max_len=512, seed=1)
+lpe.save_weights("learned_pe.json")
+
+lpe2 = LearnedPositionalEmbedding(dim=1, max_len=1)  # dummy; will be overwritten
+lpe2.load_weights("learned_pe.json")
+assert lpe2.dim == 64 and lpe2.max_len == 512
+```
+
+<a id="development"></a>
+Development
+- Create and activate a virtual environment (recommended).
+- Install in editable mode:
+  - pip install -e .
+- Install optional dev tools:
+  - pip install ruff flake8 pytest build
+
+<a id="testing"></a>
+Testing
+- Run the unittest suite:
+  - python -m unittest discover tests -v
+- Or with pytest (if installed):
+  - python -m pytest -q
+
+<a id="linting"></a>
+Linting
+- Ruff (configured in pyproject.toml):
+  - ruff check .
+- Flake8:
+  - flake8 .
+
+<a id="building-and-publishing"></a>
+Building and publishing
+- Build wheels/sdist (requires python-build):
+  - python -m build
+- Publish to PyPI (requires twine and appropriate credentials):
+  - twine upload dist/*
 
 <a id="ci"></a>
 CI
@@ -384,3 +914,73 @@ Quick links
 - Default CI: [python-tests.yml](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml)
 - Manual Terminal: [manual-terminal.yml](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml)
 - Manual CI: [manual-ci.yml](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml)
+
+<a id="contributing"></a>
+Contributing
+- We welcome PRs for bug fixes, improvements, examples, and docs.
+- Guidelines:
+  - Keep code dependency-free (pure Python standard library).
+  - Follow existing style and minimal, meaningful comments.
+  - Add or update unit tests under tests/ for new functionality.
+  - Run lint and tests locally:
+    - ruff check .
+    - flake8 .
+    - python -m unittest discover tests -v
+  - For features touching examples/, include a short usage snippet in README or the example's docstring.
+  - CI will run lint, tests, and smoke examples on pull requests.
+- Release process:
+  - Bump version in pyproject.toml.
+  - Build distributions: python -m build
+  - Publish via CI or twine after tagging.
+
+<a id="troubleshooting"></a>
+Troubleshooting
+- Dimension mismatches:
+  - Ensure EmbeddingLayer(dim) matches TransformerEncoder(dim).
+  - Positional encodings must use the same dim as embeddings; add_to will raise on mismatch.
+- Mask shapes:
+  - Masks must be [seq_len x seq_len]. Using tokens-based helpers is safer:
+    - make_causal_mask_from_tokens(tokens)
+    - make_padding_mask_from_tokens(tokens)
+- Vocab consistency:
+  - Use the same vocab file for embedding and inference. Unknown tokens map to <unk>.
+  - If you ban <unk> during inference, confirm it exists in the vocab or is allocated internally.
+- Learned positional embedding max_len:
+  - LearnedPositionalEmbedding.encode/add_to will raise if offset+length exceeds max_len. Increase max_len or trim sequences.
+- Next-token head alignment:
+  - Train and infer with matching encoder hyperparameters (dim, layers, heads, ff).
+  - If you trained with --add_pe, use the same PE during inference for consistent hidden states.
+- Performance tips:
+  - Reduce dim, layers, heads, ff for quicker runs.
+  - Shorten seq_len/stride and epochs in examples for faster CI or local smoke tests.
+- Determinism:
+  - Setting seeds on EmbeddingLayer, Transformer blocks, and examples yields repeatable outputs, but sampling (top_k/temperature) is stochastic unless you also fix random module state.
+- Decoding readability:
+  - BPETokenizer.decode applies a heuristic detokenizer for human-readable output. It's not exact reconstruction but avoids "A l l e n" artifacts.
+
+<a id="recommended-decoding-settings"></a>
+Recommended decoding settings
+- Deterministic replies:
+  - --preset deterministic
+  - Equivalent manual settings: --greedy --temperature 0.7
+  - Use when you want stable, repeatable outputs for tests or demos.
+- Balanced creativity:
+  - --preset balanced
+  - Equivalent manual settings: --temperature 0.9 --top_k 20 --top_p 0.9
+  - Good default for general chat; diversity with reasonable coherence.
+- Creative/diverse:
+  - --preset creative
+  - Equivalent manual settings: --temperature 1.1 --top_p 0.92 (prefer nucleus sampling; set --top_k 0)
+  - Use for brainstorming or exploratory generation; higher variance.
+
+Notes
+- Presets override individual decoding flags if provided; you can still fine-tune afterwards (e.g., pass --temperature).
+- Post-processing defaults by preset:
+  - Deterministic: bans <unk>, excludes <pad>, no min_prob threshold (generator: --ban_tokens "<unk>" --exclude_pad --pad_token "<pad>")
+  - Balanced: bans <unk>, excludes <pad>, sets small min_prob (generator: --min_prob 0.001)
+  - Creative: minimal filtering (no min_prob), keep diversity
+- For streaming UX, add --stream to echo tokens as they’re generated.
+
+<a id="license"></a>
+License
+- MIT License. See the LICENSE file for details.
