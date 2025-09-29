@@ -90,6 +90,11 @@ def main() -> None:
     parser.add_argument("--stop_token", type=str, default="", help="Optional token that stops generation, e.g., '<eos>'.")
     parser.add_argument("--system", type=str, default="", help="Optional system prompt that prefixes the conversation.")
     parser.add_argument("--greedy", action="store_true", help="Use greedy decoding instead of sampling.")
+    parser.add_argument(
+        "--stdin",
+        action="store_true",
+        help="Force non-interactive mode: read a single line from stdin (no prompt) and exit after one turn.",
+    )
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
@@ -239,6 +244,8 @@ def main() -> None:
     print("Chatbot ready. Type your message and press Enter. Ctrl+C to exit.")
     stop_tok = args.stop_token.strip() or None
     interactive = sys.stdin.isatty()
+    if args.stdin:
+        interactive = False
     try:
         while True:
             if interactive:
