@@ -212,7 +212,7 @@ class TestTransformerEncoder(unittest.TestCase):
         self.assertTrue(all(len(row) == dim for row in Y))
 
 
- class TestMasks(unittest.TestCase):
+class TestMasks(unittest.TestCase):
     def test_generate_causal_mask(self):
         for n in [0, 1, 2, 5]:
             m = generate_causal_mask(n)
