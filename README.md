@@ -232,6 +232,11 @@ Examples
     - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20
   - With nucleus sampling (top-p) and streaming:
     - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --top_p 0.9 --stream
+  - Post-processing examples:
+    - Allow only a set of tokens:
+      - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --temperature 0.9 --top_k 20 --allow_only "Allen,analysis"
+    - Ban unknown and pad tokens:
+      - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --max_new_tokens 32 --top_p 0.9 --ban_tokens "<unk>,<pad>" --exclude_pad --pad_token "<pad>"
   - With presets:
     - Deterministic:
       - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --preset deterministic
@@ -274,6 +279,11 @@ Examples
       - --exclude_pad --pad_token "<pad>"
     - Minimum probability threshold:
       - --min_prob 0.001
+    - Examples:
+      - Allow only a set of tokens:
+        - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_k 10 --temperature 0.9 --allow_only "Allen,analysis"
+      - Ban unknown and pad tokens:
+        - python examples/generate_sequence.py --prompt "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_p 0.9 --ban_tokens "<unk>,<pad>" --exclude_pad --pad_token "<pad>"
   - Presets:
     - Deterministic:
       - --preset deterministic  (greedy, temperature≈0.7; bans <unk>, excludes <pad>)
