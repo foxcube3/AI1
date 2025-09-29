@@ -8,7 +8,12 @@ from bpe_tokenizer import BPETokenizer
 from embedding import EmbeddingLayer
 from positional_encoding import SinusoidalPositionalEncoding
 from transformer_blocks import TransformerEncoder, generate_causal_mask
-from examples.chatbot import Chatbot  # reuse the Chatbot class
+try:
+    # When installed as a package with examples available as a module
+    from examples.chatbot import Chatbot  # type: ignore
+except ImportError:
+    # When running this script directly (python examples/train_then_chatbot.py)
+    from chatbot import Chatbot
 
 
 def _softmax_vec(logits: Sequence[float]) -> List[float]:
