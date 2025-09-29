@@ -240,6 +240,13 @@ Examples
       - --out out.txt
     - Write per-step JSON logs (JSON Lines format):
       - --jsonl gen_log.jsonl
+    - Include full probability distribution per step (large):
+      - --jsonl_include_all
+  - Length caps:
+    - Hard cap total tokenized length (prompt + generated):
+      - --max_total_tokens 128
+    - Hard cap total character length (prompt + generated):
+      - --max_total_chars 500
 
 <a id="chatbot-usage"></a>
 Chatbot usage

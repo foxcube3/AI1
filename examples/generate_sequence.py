@@ -113,6 +113,9 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=123, help="Random seed for sampling.")
     parser.add_argument("--out", type=str, default="", help="Optional path to write final generated text.")
     parser.add_argument("--jsonl", type=str, default="", help="Optional path to write per-step JSON lines for generation.")
+    parser.add_argument("--jsonl_include_all", action="store_true", help="Include full probability distribution per step in JSONL (large).")
+    parser.add_argument("--max_total_tokens", type=int, default=0, help="Optional hard cap on total tokenized length (prompt + generated). 0 disables.")
+    parser.add_argument("--max_total_chars", type=int, default=0, help="Optional hard cap on total character length (prompt + generated). 0 disables.")
     # Post-processing controls
     parser.add_argument("--allow_only", type=str, default="", help="Comma-separated tokens to allow; mask others.")
     parser.add_argument("--ban_tokens", type=str, default="", help="Comma-separated tokens to ban.")
@@ -166,8 +169,14 @@ def main() -> None:
 
         produced: List[str] = []
         for step in range(max(0, args.max_new_tokens)):
+            # Caps by chars/tokens before generating next token
+            if args.max_total_chars > 0 and len(text) >= args.max_total_chars:
+                break
+
             tokens = tok.encode(text)
             if not tokens:
+                break
+            if args.max_total_tokens > 0 and len(tokens) >= args.max_total_tokens:
                 break
 
             X = emb.embed_tokens(tokens)
@@ -202,6 +211,12 @@ def main() -> None:
                 top_idx = sorted(range(len(probs)), key=lambda x: probs[x], reverse=True)[:max(1, args.top_k)]
 
             next_tok = id_to_token.get(j, "<unk>")
+            # If appending next token would exceed char cap, stop
+            if args.max_total_chars > 0:
+                prospective = (text + " " + next_tok).strip()
+                if len(prospective) > args.max_total_chars:
+                    break
+
             should_stop = bool(args.stop_token and next_tok == args.stop_token)
             if jsonl_fp is not None:
                 event = {
@@ -217,6 +232,9 @@ def main() -> None:
                         for idx in top_idx
                     ],
                 }
+                if args.jsonl_include_all:
+                    # Include full probability distribution; note: can be large for big vocabs.
+                    event["probs"] = [{"id": i, "token": id_to_token.get(i, "<unk>"), "p": probs[i]} for i in range(len(probs))]
                 jsonl_fp.write(json.dumps(event) + "\n")
 
             if should_stop:
