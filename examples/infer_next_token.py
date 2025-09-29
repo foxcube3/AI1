@@ -79,6 +79,16 @@ def _post_process_probs(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Inference: score next-token probabilities using a trained head.")
+    # Post-processing flags quick reference:
+    # --temperature FLOAT     : Softmax temperature (default 1.0). Lower -> sharper, higher -> smoother.
+    # --allow_only "a,b,..."  : Only allow listed tokens; others set to 0 then renormalized.
+    # --ban_tokens "x,y,..."  : Zero out listed tokens then renormalize.
+    # --exclude_pad           : Exclude pad token from output; requires --pad_token "<pad>" to name it.
+    # --min_prob FLOAT        : Zero probabilities below threshold, then renormalize.
+    #
+    # Other helpful flags:
+    # --candidates "a,b,..."  : Show probabilities for specific tokens.
+    # --top_k N               : Display top-N predictions from the (post-processed) distribution.
     parser.add_argument("--text", type=str, required=True, help="Prompt text to condition on.")
     parser.add_argument("--head", type=str, required=True, help="Path to trained head JSON (from train_next_token_head.py).")
     parser.add_argument("--merges", type=str, default="bpe_merges.txt", help="Path to BPE merges.")
