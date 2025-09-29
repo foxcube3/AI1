@@ -8,6 +8,7 @@ Table of Contents
 - [Requirements](#requirements)
 - [Quick start](#quick-start)
 - [Examples](#examples)
+  - [Post-processing (inference) — quick reference](#post-processing-inference-quick-reference)
 - [Simple training (next-token head)](#simple-training-next-token-head)
 - [API Reference](#api-reference)
   - [BPETokenizer](#bpetokenizer)
@@ -33,6 +34,7 @@ Table of Contents
     - [__init__](#learnedpositionalembedding-init)
     - [encode](#learnedpositionalembedding-encode)
     - [add_to](#learnedpositionalembedding-add-to)
+  - [Inference Post-processing](#api-inference-post-processing)
 - [Development](#development)
 - [CI](#ci)
 - [License](#license)
@@ -251,6 +253,7 @@ End-to-end (train then infer):
 - Single command to train and immediately run inference:
   - python examples/train_then_infer.py --corpus allen.txt --prompt "Allen allows" --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 3 --adam --add_pe --top_k 10 --save_head head.json
 
+<a id="post-processing-inference-quick-reference"></a>
 Post-processing (inference) — quick reference
 - These options modify the next-token probability distribution produced during inference:
   - --temperature FLOAT
@@ -269,6 +272,7 @@ Post-processing (inference) — quick reference
   - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --allow_only "Allen,analysis"
   - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --ban_tokens "<unk>,<pad>" --min_prob 0.001
 
+<a id="api-inference-post-processing"></a>
 API Reference — Inference Post-processing
 - The inference utility (examples/infer_next_token.py) exposes CLI flags that apply post-processing to the softmax distribution:
   - Temperature: --temperature FLOAT
