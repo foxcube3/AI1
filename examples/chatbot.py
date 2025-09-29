@@ -210,6 +210,8 @@ class Chatbot:
         repeat_window: int = 0,
         max_token_repeat: int = 0,
         allow_alpha_only: bool = False,
+        prefer_eow: bool = False,
+        eow_bias: float = 1.0,
     ) -> List[str]:
         tokens = list(prompt_tokens)
         V = len(self.inv_vocab)
@@ -289,6 +291,17 @@ class Chatbot:
                 s2 = sum(penalized)
                 if s2 > 0.0:
                     probs = [x / s2 for x in penalized]
+
+            # Prefer tokens that include end-of-word marker to encourage word boundaries
+            if prefer_eow and eow_bias and eow_bias > 1.0:
+                adjusted = list(probs)
+                for i in range(len(adjusted)):
+                    t = self.inv_vocab.get(i, "<unk>")
+                    if "</w>" in t:
+                        adjusted[i] *= float(eow_bias)
+                s3 = sum(adjusted)
+                if s3 > 0.0:
+                    probs = [x / s3 for x in adjusted]
 
             # Choose a candidate id
             def pick_candidate() -> int:
@@ -456,6 +469,9 @@ def main() -> None:
     parser.add_argument("--min_token_len", type=int, default=0, help="Minimum token length for generated tokens (0 disables).")
     # Strict token set constraint
     parser.add_argument("--allow_alpha_only", action="store_true", help="Mask out non-alphabetic tokens during generation.")
+    # End-of-word preference
+    parser.add_argument("--prefer_eow", action="store_true", help="Increase probability of tokens containing '</w>' to encourage word boundaries.")
+    parser.add_argument("--eow_bias", type=float, default=1.0, help="Multiplicative bias for '</w>' tokens when --prefer_eow is set (>1.0 increases preference).")
     args = parser.parse_args()
 
     # Apply decoding presets
@@ -484,6 +500,10 @@ def main() -> None:
             args.repeat_window = 32
         if args.max_token_repeat <= 0:
             args.max_token_repeat = 2
+        # Prefer end-of-word tokens to encourage word boundaries
+        args.prefer_eow = True
+        if args.eow_bias <= 1.0:
+            args.eow_bias = 1.3
     elif args.preset == "balanced":
         args.greedy = False
         args.temperature = 0.9
@@ -508,6 +528,9 @@ def main() -> None:
             args.repeat_window = 32
         if args.max_token_repeat <= 0:
             args.max_token_repeat = 2
+        args.prefer_eow = True
+        if args.eow_bias <= 1.0:
+            args.eow_bias = 1.2
     elif args.preset == "creative":
         args.greedy = False
         args.temperature = 1.1
@@ -523,6 +546,10 @@ def main() -> None:
             args.repeat_window = 16
         if args.max_token_repeat <= 0:
             args.max_token_repeat = 3
+        # Lightly prefer end-of-word tokens
+        args.prefer_eow = True
+        if args.eow_bias <= 1.0:
+            args.eow_bias = 1.1
 
     bot = Chatbot(
         merges_path=args.merges,
