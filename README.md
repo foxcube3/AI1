@@ -171,9 +171,23 @@ Examples
 - Simple training (next-token head): examples/train_next_token_head.py
   - python examples/train_next_token_head.py --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 5 --adam --add_pe --save_head head.json
 - Inference for trained head: examples/infer_next_token.py
-  - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_k 10
+  - Basic usage:
+    - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --top_k 10
+  - Post-processing options:
+    - Temperature scaling:
+      - --temperature 0.7
+    - Allow only a set of tokens (others are masked to 0 then renormalized):
+      - --allow_only "Allen,analysis"
+    - Ban specific tokens:
+      - --ban_tokens "<unk>,<pad>"
+    - Exclude pad token by name:
+      - --exclude_pad --pad_token "<pad>"
+    - Minimum probability threshold (values below are zeroed then renormalized):
+      - --min_prob 0.001
   - With explicit token candidates:
     - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --candidates "<pad>,Allen,analysis"
+  - Example combining options:
+    - python examples/infer_next_token.py --text "Allen allows" --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --temperature 0.8 --exclude_pad --pad_token "<pad>" --ban_tokens "<unk>" --top_k 10
 - End-to-end (train then infer): examples/train_then_infer.py
   - python examples/train_then_infer.py --corpus allen.txt --prompt "Allen allows" --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 3 --adam --add_pe --top_k 10 --save_head head.json
 - Console chatbot (uses trained head): examples/chatbot.py
