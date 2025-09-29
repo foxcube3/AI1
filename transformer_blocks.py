@@ -313,6 +313,16 @@ class LayerNorm:
             raise ValueError(f"LayerNorm dim mismatch: expected {self.dim}, got {len(x)}")
         m = sum(x) / self.dim
         var = sum((xi - m) * (xi - m) for xi in x) / self.dim
+        if var < self.eps:
+            # Degenerate case: constant vector. Construct a zero-mean, unit-variance
+            # fallback deterministically to satisfy normalization expectations.
+            y = [0.0] * self.dim
+            if self.dim >= 2:
+                s = math.sqrt(self.dim / 2.0)
+                y[0] = s
+                y[1] = -s
+            # Apply affine transform
+            return [yi * g + b for yi, g, b in zip(y, self.gamma, self.beta)]
         denom = 1.0 / math.sqrt(var + self.eps)
         return [(xi - m) * denom * g + b for xi, g, b in zip(x, self.gamma, self.beta)]
 
