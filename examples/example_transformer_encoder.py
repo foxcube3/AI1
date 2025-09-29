@@ -3,7 +3,12 @@ import argparse
 from bpe_tokenizer import BPETokenizer
 from embedding import EmbeddingLayer
 from positional_encoding import SinusoidalPositionalEncoding
-from transformer_blocks import TransformerEncoder
+from transformer_blocks import (
+    TransformerEncoder,
+    generate_causal_mask,
+    make_causal_mask_from_tokens,
+    make_padding_mask_from_tokens,
+)
 
 
 def main():
@@ -20,6 +25,19 @@ def main():
         action="store_true",
         help="If set, add sinusoidal positional encodings before the encoder.",
     )
+    parser.add_argument(
+        "--use_mask",
+        type=str,
+        default="none",
+        choices=["none", "causal", "padding_from_tokens", "causal_from_tokens"],
+        help="Type of mask to apply during attention.",
+    )
+    parser.add_argument(
+        "--pad_token",
+        type=str,
+        default="<pad>",
+        help="Pad token string when using *_from_tokens masking.",
+    )
     args = parser.parse_args()
 
     # Load tokenizer and vocab
@@ -35,6 +53,15 @@ def main():
         pe = SinusoidalPositionalEncoding(dim=args.dim)
         X = pe.add_to(X, offset=0)
 
+    # Prepare optional mask
+    mask = None
+    if args.use_mask == "causal":
+        mask = generate_causal_mask(len(tokens))
+    elif args.use_mask == "padding_from_tokens":
+        mask = make_padding_mask_from_tokens(tokens, pad_token=args.pad_token)
+    elif args.use_mask == "causal_from_tokens":
+        mask = make_causal_mask_from_tokens(tokens, pad_token=args.pad_token)
+
     # Build transformer encoder
     encoder = TransformerEncoder(
         num_layers=args.layers,
@@ -44,13 +71,16 @@ def main():
         seed=123,
     )
 
-    Y = encoder(X)  # [T x D]
+    Y = encoder(X, mask=mask)  # [T x D]
 
     print("Input:", args.text)
     print("Tokens:", tokens)
     print("Sequence length:", len(tokens))
     print("Model dim:", args.dim)
     print("Layers/Heads/FF:", args.layers, args.heads, args.ff)
+    print("Mask type:", args.use_mask)
+    if mask is not None:
+        print("Mask[0]:", mask[0] if mask else None)
     print("First 3 dims (input):", [[round(v, 4) for v in row[:3]] for row in X])
     print("First 3 dims (output):", [[round(v, 4) for v in row[:3]] for row in Y])
 
