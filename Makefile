@@ -15,8 +15,10 @@
 #   make test       -> unittest discover
 #   make pytest     -> pytest (if installed)
 #   make ci         -> lint + test
+#   make build      -> build wheel + sdist
+#   make publish    -> twine upload dist/*
 
-.PHONY: help chat-balanced chat-deterministic chat-creative generate-balanced lint test pytest ci
+.PHONY: help chat-balanced chat-deterministic chat-creative generate-balanced lint test pytest ci build publish
 
 HEAD ?= head.json
 PROMPT ?= Allen allows
@@ -32,6 +34,8 @@ help:
 	@echo "  make test                    Run unittest suite"
 	@echo "  make pytest                  Run pytest (if installed)"
 	@echo "  make ci                      Run lint + test"
+	@echo "  make build                   Build wheel + sdist (python -m build)"
+	@echo "  make publish                 Upload dist/* with twine"
 
 chat-balanced:
 	./examples/run_chat_balanced.sh $(HEAD) $(ARGS)
@@ -56,3 +60,9 @@ pytest:
 	python -m pytest -q || echo "pytest not installed; skipping."
 
 ci: lint test
+
+build:
+	python -m build
+
+publish:
+	twine upload dist/* || echo "twine not installed or credentials missing; please configure and retry."
