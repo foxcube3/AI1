@@ -205,6 +205,8 @@ class Chatbot:
         min_prob: float = 0.0,
         no_repeat_ngram_size: int = 0,
         ban_immediate_repeat: bool = False,
+        require_alpha_start: bool = False,
+        min_token_len: int = 0,
     ) -> List[str]:
         tokens = list(prompt_tokens)
         V = len(self.inv_vocab)
@@ -278,20 +280,33 @@ class Chatbot:
             next_tok = self.inv_vocab.get(next_id, "<unk>")
 
             # Constraint checks and fallback search
-            def violates(candidate: str) -> bool:
+            def violates(candidate: str, new_idx: int) -> bool:
+                # new_idx: how many new tokens have been appended so far (0-based for the next one)
                 if ban_immediate_repeat and tokens and candidate == tokens[-1]:
                     return True
                 if violates_no_repeat(candidate):
                     return True
+                # Require first generated token to start with a letter and be at least min_token_len
+                if require_alpha_start and new_idx == 0:
+                    if not candidate or not candidate[0].isalpha():
+                        return True
+                    if min_token_len > 0 and len(candidate) < min_token_len:
+                        return True
+                # Generic minimum token length (applies to all positions)
+                if min_token_len > 0 and len(candidate) < min_token_len:
+                    return True
                 return False
 
-            if violates(next_tok):
+            # Index of the next new token relative to start of generation
+            new_idx = len(tokens) - len(prompt_tokens)
+
+            if violates(next_tok, new_idx):
                 # Try alternatives in descending probability order
                 idxs = sorted(range(len(probs)), key=lambda i: probs[i], reverse=True)
                 chosen = None
                 for j in idxs:
                     t = self.inv_vocab.get(j, "<unk>")
-                    if not violates(t):
+                    if not violates(t, new_idx):
                         chosen = (j, t)
                         break
                 if chosen is not None:
@@ -378,6 +393,9 @@ def main() -> None:
     # Repetition controls
     parser.add_argument("--no_repeat_ngram_size", type=int, default=0, help="Disallow repeating contiguous n-grams of this size (0 disables).")
     parser.add_argument("--ban_immediate_repeat", action="store_true", help="Disallow immediately repeating the last generated token.")
+    # Start/length constraints
+    parser.add_argument("--require_alpha_start", action="store_true", help="Require the first generated token to start with a letter.")
+    parser.add_argument("--min_token_len", type=int, default=0, help="Minimum token length for generated tokens (0 disables).")
     args = parser.parse_args()
 
     # Apply decoding presets
@@ -394,10 +412,13 @@ def main() -> None:
             args.pad_token = "<pad>"
         if args.min_prob <= 0.0:
             args.min_prob = 0.0
-        # Repetition controls for cleaner output
+        # Repetition/cleanliness controls for cleaner output
         if args.no_repeat_ngram_size <= 0:
             args.no_repeat_ngram_size = 3
         args.ban_immediate_repeat = True
+        args.require_alpha_start = True
+        if args.min_token_len <= 0:
+            args.min_token_len = 2
     elif args.preset == "balanced":
         args.greedy = False
         args.temperature = 0.9
@@ -411,10 +432,13 @@ def main() -> None:
             args.pad_token = "<pad>"
         if args.min_prob <= 0.0:
             args.min_prob = 0.001
-        # Mild repetition control
+        # Mild repetition/cleanliness control
         if args.no_repeat_ngram_size <= 0:
             args.no_repeat_ngram_size = 3
         args.ban_immediate_repeat = True
+        args.require_alpha_start = True
+        if args.min_token_len <= 0:
+            args.min_token_len = 2
     elif args.preset == "creative":
         args.greedy = False
         args.temperature = 1.1
