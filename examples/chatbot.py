@@ -241,6 +241,23 @@ class Chatbot:
                 min_prob=min_prob,
             )
 
+            # Position-aware masking to enforce clean starts/lengths
+            new_idx = len(tokens) - len(prompt_tokens)
+            if (require_alpha_start and new_idx == 0) or (min_token_len > 0):
+                mask = [1.0] * len(probs)
+                for i in range(len(probs)):
+                    t = self.inv_vocab.get(i, "<unk>")
+                    violates_alpha = (require_alpha_start and new_idx == 0 and (not t or not t[0].isalpha()))
+                    violates_len = (min_token_len > 0 and (len(t) < min_token_len))
+                    if violates_alpha or violates_len:
+                        mask[i] = 0.0
+                # Apply mask and renormalize if any mass remains
+                probs = [p * m for p, m in zip(probs, mask)]
+                s = sum(probs)
+                if s > 0.0:
+                    probs = [p / s for p in probs]
+                # If s == 0.0, keep original probs (fallback to constraints check below)
+
             # Choose a candidate id
             def pick_candidate() -> int:
                 if greedy:
@@ -280,14 +297,14 @@ class Chatbot:
             next_tok = self.inv_vocab.get(next_id, "<unk>")
 
             # Constraint checks and fallback search
-            def violates(candidate: str, new_idx: int) -> bool:
-                # new_idx: how many new tokens have been appended so far (0-based for the next one)
+            def violates(candidate: str, idx_generated: int) -> bool:
+                # idx_generated: index of the next new token relative to start of generation
                 if ban_immediate_repeat and tokens and candidate == tokens[-1]:
                     return True
                 if violates_no_repeat(candidate):
                     return True
                 # Require first generated token to start with a letter and be at least min_token_len
-                if require_alpha_start and new_idx == 0:
+                if require_alpha_start and idx_generated == 0:
                     if not candidate or not candidate[0].isalpha():
                         return True
                     if min_token_len > 0 and len(candidate) < min_token_len:
@@ -296,9 +313,6 @@ class Chatbot:
                 if min_token_len > 0 and len(candidate) < min_token_len:
                     return True
                 return False
-
-            # Index of the next new token relative to start of generation
-            new_idx = len(tokens) - len(prompt_tokens)
 
             if violates(next_tok, new_idx):
                 # Try alternatives in descending probability order
