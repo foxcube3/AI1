@@ -1,7 +1,7 @@
 import unittest
 import math
 
-from positional_encoding import SinusoidalPositionalEncoding
+from positional_encoding import SinusoidalPositionalEncoding, LearnedPositionalEmbedding
 
 
 class TestSinusoidalPositionalEncoding(unittest.TestCase):
@@ -45,6 +45,40 @@ class TestSinusoidalPositionalEncoding(unittest.TestCase):
         pe = SinusoidalPositionalEncoding(dim=4)
         with self.assertRaises(ValueError):
             pe.add_to([[0.0, 0.0, 0.0]], offset=0)  # dim=3 vs expected 4
+
+
+class TestLearnedPositionalEmbedding(unittest.TestCase):
+    def test_shapes_and_range(self):
+        dim = 16
+        max_len = 50
+        pe = LearnedPositionalEmbedding(dim=dim, max_len=max_len, seed=123, init="uniform")
+        out = pe.encode(10, offset=5)
+        self.assertEqual(len(out), 10)
+        self.assertTrue(all(len(row) == dim for row in out))
+        # Ensure consistent slice equals weights slice
+        self.assertEqual(out[0], pe.weights[5])
+        self.assertEqual(out[-1], pe.weights[14])
+
+    def test_add_to_and_dim_check(self):
+        dim = 8
+        max_len = 20
+        pe = LearnedPositionalEmbedding(dim=dim, max_len=max_len, seed=1)
+        embeddings = [[0.1] * dim for _ in range(4)]
+        out = pe.add_to(embeddings, offset=3)
+        self.assertEqual(len(out), 4)
+        self.assertTrue(all(len(row) == dim for row in out))
+        # Mismatch
+        with self.assertRaises(ValueError):
+            pe.add_to([[0.0, 0.0]], offset=0)
+
+    def test_bounds(self):
+        dim = 4
+        max_len = 5
+        pe = LearnedPositionalEmbedding(dim=dim, max_len=max_len)
+        with self.assertRaises(ValueError):
+            pe.encode(6)  # exceeds max_len
+        with self.assertRaises(ValueError):
+            pe.encode(3, offset=4)  # 4..6 exceeds max_len
 
 
 if __name__ == "__main__":

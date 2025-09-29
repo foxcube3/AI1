@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import math
-from typing import List, Sequence
+import random
+from typing import List, Optional, Sequence
 
 
 class SinusoidalPositionalEncoding:
@@ -12,7 +13,7 @@ class SinusoidalPositionalEncoding:
       PE[p, 2i]   = sin(p / (base ** (2i / dim)))
       PE[p, 2i+1] = cos(p / (base ** (2i / dim)))
 
-    - dim: embedding dimension (must be &gt; 0)
+    - dim: embedding dimension (must be > 0)
     - base: scaling base (typically 10000.0)
     """
 
@@ -50,6 +51,76 @@ class SinusoidalPositionalEncoding:
         """
         Add positional encodings to an existing embedding sequence.
         Returns a new list (does not mutate input).
+        """
+        if not embeddings:
+            return []
+        length = len(embeddings)
+        dim = self.dim
+        pe = self.encode(length, offset=offset)
+        out: List[List[float]] = []
+        for vec, pos in zip(embeddings, pe):
+            if len(vec) != dim:
+                raise ValueError(f"Embedding dimension mismatch: expected {dim}, got {len(vec)}")
+            out.append([a + b for a, b in zip(vec, pos)])
+        return out
+
+
+class LearnedPositionalEmbedding:
+    """
+    Learned positional embeddings with a fixed maximum length.
+
+    - dim: embedding dimension (>0)
+    - max_len: maximum supported sequence length (>0)
+    - init: 'zeros' | 'uniform' | 'xavier_uniform'
+    - seed: optional seed for deterministic initialization
+
+    Methods mirror SinusoidalPositionalEncoding: encode(length, offset) and add_to(embeddings, offset).
+    """
+
+    def __init__(
+        self,
+        dim: int,
+        max_len: int,
+        *,
+        init: str = "xavier_uniform",
+        seed: Optional[int] = None,
+    ) -> None:
+        if dim <= 0:
+            raise ValueError("dim must be positive")
+        if max_len <= 0:
+            raise ValueError("max_len must be positive")
+        self.dim = dim
+        self.max_len = max_len
+        self._rng = random.Random(seed)
+        self.weights: List[List[float]] = self._init_weights(max_len, dim, init)
+
+    def _init_weights(self, rows: int, cols: int, init: str) -> List[List[float]]:
+        init_l = init.lower()
+        if init_l == "zeros":
+            return [[0.0 for _ in range(cols)] for _ in range(rows)]
+        elif init_l in {"uniform", "xavier_uniform"}:
+            if init_l == "uniform":
+                limit = 1.0 / math.sqrt(cols)
+            else:
+                limit = math.sqrt(6.0 / (cols + cols))
+            return [[self._rng.uniform(-limit, limit) for _ in range(cols)] for _ in range(rows)]
+        else:
+            raise ValueError(f"Unknown init scheme: {init}")
+
+    def encode(self, length: int, *, offset: int = 0) -> List[List[float]]:
+        """
+        Return [length x dim] learned positional embeddings starting at position `offset`.
+        """
+        if length < 0:
+            raise ValueError("length must be non-negative")
+        end = offset + length
+        if end > self.max_len:
+            raise ValueError(f"Requested positions up to {end-1}, but max_len is {self.max_len}")
+        return [self.weights[p] for p in range(offset, end)]
+
+    def add_to(self, embeddings: Sequence[Sequence[float]], *, offset: int = 0) -> List[List[float]]:
+        """
+        Add learned positional embeddings to an existing embedding sequence.
         """
         if not embeddings:
             return []

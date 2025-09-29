@@ -28,6 +28,10 @@ Table of Contents
   - [SinusoidalPositionalEncoding](#sinusoidalpositionalencoding)
     - [encode](#sinusoidalpositionalencoding-encode)
     - [add_to](#sinusoidalpositionalencoding-add-to)
+  - [LearnedPositionalEmbedding](#learnedpositionalembedding)
+    - [__init__](#learnedpositionalembedding-init)
+    - [encode](#learnedpositionalembedding-encode)
+    - [add_to](#learnedpositionalembedding-add-to)
 - [Development](#development)
 - [CI](#ci)
 - [License](#license)
@@ -52,6 +56,7 @@ Features
   - No external dependencies.
 - Positional Encoding
   - SinusoidalPositionalEncoding (Transformer-style).
+  - LearnedPositionalEmbedding (trainable table up to a max length).
   - Generate PE matrices and add to embeddings without external deps.
 - Tooling
   - Unit tests for tokenizer, embedding, and positional encoding.
@@ -68,6 +73,7 @@ Repository contents
 - examples/example_encode.py — Load a trained tokenizer and encode text.
 - examples/example_embed.py — Load tokenizer + vocab, build embedding layer, and embed text.
 - examples/example_embed_with_pe.py — Embed text and add sinusoidal positional encodings.
+- examples/example_embed_with_learned_pe.py — Embed text and add learned positional embeddings.
 - examples/train_and_embed.py — One-shot pipeline: train BPE then embed text.
 - tests/test_bpe.py — Unit tests for BPETokenizer.
 - tests/test_embedding.py — Unit tests for EmbeddingLayer.
@@ -154,8 +160,10 @@ Examples
   - python examples/example_encode.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "This is a sample sentence."
 - Embedding example: examples/example_embed.py
   - python examples/example_embed.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32
-- Embedding + Positional Encoding: examples/example_embed_with_pe.py
+- Embedding + Sinusoidal Positional Encoding: examples/example_embed_with_pe.py
   - python examples/example_embed_with_pe.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32
+- Embedding + Learned Positional Embedding: examples/example_embed_with_learned_pe.py
+  - python examples/example_embed_with_learned_pe.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32 --max_len 512
 - Train + embed pipeline: examples/train_and_embed.py
   - python examples/train_and_embed.py --corpus allen.txt --vocab_size 1000 --min_frequency 2 --output_prefix bpe --dim 32 --text "Allen allows ample analysis"
 
@@ -234,6 +242,21 @@ Create a [length x dim] positional encoding matrix starting at the given offset.
 <a id="sinusoidalpositionalencoding-add-to"></a>
 #### add_to(embeddings: Sequence[Sequence[float]], offset: int = 0) -> List[List[float]]
 Element-wise add positional encodings to an embedding sequence. Returns a new list.
+
+<a id="learnedpositionalembedding"></a>
+### LearnedPositionalEmbedding (positional_encoding.py)
+
+<a id="learnedpositionalembedding-init"></a>
+#### __init__(dim: int, max_len: int, init: str = "xavier_uniform", seed: Optional[int] = None)
+Create a trainable positional embedding table of shape [max_len x dim]. Init schemes: zeros, uniform, xavier_uniform.
+
+<a id="learnedpositionalembedding-encode"></a>
+#### encode(length: int, offset: int = 0) -> List[List[float]]
+Return a [length x dim] slice starting from position `offset`. Raises if offset+length > max_len.
+
+<a id="learnedpositionalembedding-add-to"></a>
+#### add_to(embeddings: Sequence[Sequence[float]], offset: int = 0) -> List[List[float]]
+Element-wise add learned positional embeddings to an embedding sequence. Returns a new list.
 
 <a id="license"></a>
 License
