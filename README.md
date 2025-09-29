@@ -310,6 +310,21 @@ Per-position layer normalization. Callable on sequences X: List[List[float]] wit
 #### generate_causal_mask(seq_len: int) -> List[List[float]]
 - Utility that returns a lower-triangular mask with 1.0 allowed and 0.0 masked.
 
+#### generate_padding_mask(seq_len: int, valid_len: int) -> List[List[float]]
+- Masks out positions i or j >= valid_len (padding).
+
+#### generate_causal_padding_mask(seq_len: int, valid_len: int) -> List[List[float]]
+- Combines causal constraint (j <= i) with padding mask.
+
+#### generate_padding_mask_from_flags(pad_flags: Sequence[bool]) -> List[List[float]]
+- pad_flags[i] == True means position i is padding (masked). Returns [L x L] mask.
+
+#### generate_causal_padding_mask_from_flags(pad_flags: Sequence[bool]) -> List[List[float]]
+- Same as above but enforces causal constraint (j <= i).
+
+#### generate_causal_masks_from_lengths(lengths: Sequence[int]) -> List[List[List[float]]]
+- Convenience to create a batch of [L x L] causal+padding masks where L = max(lengths).
+
 <a id="license"></a>
 License
 - MIT or your preferred license (update as needed).

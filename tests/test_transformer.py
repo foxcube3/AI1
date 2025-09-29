@@ -226,7 +226,13 @@ class TestTransformerEncoder(unittest.TestCase):
              generate_causal_mask(-1)
 
      def test_padding_and_causal_padding_masks(self):
-         from transformer_blocks import generate_padding_mask, generate_causal_padding_mask, generate_causal_masks_from_lengths
+         from transformer_blocks import (
+             generate_padding_mask,
+             generate_causal_padding_mask,
+             generate_causal_masks_from_lengths,
+             generate_padding_mask_from_flags,
+             generate_causal_padding_mask_from_flags,
+         )
 
          # padding-only mask
          m = generate_padding_mask(seq_len=5, valid_len=3)
@@ -239,6 +245,11 @@ class TestTransformerEncoder(unittest.TestCase):
          ]
          self.assertEqual(m, [[float(v) for v in row] for row in expected])
 
+         # padding-only from flags (same as valid_len=3 -> flags [F,F,F,T,T])
+         flags = [False, False, False, True, True]
+         m_flags = generate_padding_mask_from_flags(flags)
+         self.assertEqual(m_flags, m)
+
          # causal+padding
          mc = generate_causal_padding_mask(seq_len=5, valid_len=3)
          expected_c = [
@@ -249,6 +260,10 @@ class TestTransformerEncoder(unittest.TestCase):
              [0, 0, 0, 0, 0],
          ]
          self.assertEqual(mc, [[float(v) for v in row] for row in expected_c])
+
+         # causal+padding from flags
+         mc_flags = generate_causal_padding_mask_from_flags(flags)
+         self.assertEqual(mc_flags, mc)
 
          # lengths helper
          masks = generate_causal_masks_from_lengths([0, 2, 3])

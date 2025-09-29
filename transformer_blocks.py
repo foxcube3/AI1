@@ -212,6 +212,42 @@ def generate_causal_masks_from_lengths(lengths: Sequence[int]) -> List[List[List
     return masks
 
 
+def generate_padding_mask_from_flags(pad_flags: Sequence[bool]) -> List[List[float]]:
+    """
+    Create a padding mask from per-token boolean flags.
+    pad_flags[i] == True means position i is padding (should be masked).
+    Returns [L x L] with 1.0 allowed iff both i and j are not padding.
+    """
+    L = len(pad_flags)
+    mask: List[List[float]] = []
+    for i in range(L):
+        row: List[float] = []
+        for j in range(L):
+            allowed = (not pad_flags[i]) and (not pad_flags[j])
+            row.append(1.0 if allowed else 0.0)
+        mask.append(row)
+    return mask
+
+
+def generate_causal_padding_mask_from_flags(pad_flags: Sequence[bool]) -> List[List[float]]:
+    """
+    Create a causal+padding mask from per-token boolean flags.
+    pad_flags[i] == True means position i is padding (masked).
+    Returns [L x L] with 1.0 allowed iff:
+      - both i and j are not padding
+      - j <= i (causal)
+    """
+    L = len(pad_flags)
+    mask: List[List[float]] = []
+    for i in range(L):
+        row: List[float] = []
+        for j in range(L):
+            allowed = (not pad_flags[i]) and (not pad_flags[j]) and (j <= i)
+            row.append(1.0 if allowed else 0.0)
+        mask.append(row)
+    return mask
+
+
 def _init_matrix(rows: int, cols: int, rng: random.Random, scheme: str) -> List[List[float]]:
     s = scheme.lower()
     if s == "zeros":
