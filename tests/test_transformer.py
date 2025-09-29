@@ -296,5 +296,5 @@ class TestTransformerEncoder(unittest.TestCase):
             generate_causal_padding_mask(3, -1)
 
 
- if __name__ == "__main__":
+if __name__ == "__main__":
     unittest.main()
