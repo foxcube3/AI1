@@ -18,7 +18,7 @@
 #   make build      -> build wheel + sdist
 #   make publish    -> twine upload dist/*
 
-.PHONY: help chat-balanced chat-deterministic chat-creative generate-balanced lint test pytest ci build publish
+.PHONY: help chat-balanced chat-deterministic chat-creative generate-balanced decode-allen lint test pytest ci build publish
 
 HEAD ?= head.json
 PROMPT ?= Allen allows
@@ -30,6 +30,7 @@ help:
 	@echo "  make chat-deterministic      HEAD=head.json"
 	@echo "  make chat-creative           HEAD=head.json ARGS='--stream'"
 	@echo "  make generate-balanced       PROMPT='Allen allows' HEAD=head.json ARGS='--out out.txt --jsonl gen.jsonl'"
+	@echo "  make decode-allen            Decode allen.txt with trained BPE to examples/allen_decoded.txt"
 	@echo "  make lint                    Run ruff + flake8"
 	@echo "  make test                    Run unittest suite"
 	@echo "  make pytest                  Run pytest (if installed)"
@@ -48,6 +49,9 @@ chat-creative:
 
 generate-balanced:
 	./examples/run_generate_balanced.sh "$(PROMPT)" $(HEAD) $(ARGS)
+
+decode-allen:
+	python examples/example_decode.py --input allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --out examples/allen_decoded.txt
 
 lint:
 	ruff check .
