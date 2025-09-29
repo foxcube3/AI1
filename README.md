@@ -1,5 +1,5 @@
 BPE Tokenizer (Byte-Pair Encoding) + Embedding Layer
-[![CI](https://github.com/OWNER/REPO/actions/workflows/python-tests.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/python-tests.yml)
+[![CI](https://github.com/OWNER/REPO/actions/workflows/python-tests.yml/badge.svg)](https://github.com/OWNER/REPO/actions/workflows/python-tests.yml) [![PyPI](https://img.shields.io/pypi/v/bpe-tokenizer-embedding.svg)](https://pypi.org/project/bpe-tokenizer-embedding/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Table of Contents
 - [Overview](#overview)
