@@ -62,6 +62,12 @@ jobs:
         run: |
           python examples/infer_next_token.py --text "Allen allows" --head ci_head.json --merges ci_bpe_merges.txt --vocab ci_bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --top_k 5
 
+      - name: Upload trained head artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-head-${{ matrix.python-version }}
+          path: ci_head.json
+
       - name: Benchmark grid (quick)
         run: |
           python examples/benchmark_transformer_grid.py --seq_grid "8,16" --dim 16 --heads 4 --layers 1 --ff 32 --repeats 1
