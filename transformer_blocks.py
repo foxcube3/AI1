@@ -248,6 +248,13 @@ def generate_causal_padding_mask_from_flags(pad_flags: Sequence[bool]) -> List[L
     return mask
 
 
+def build_flags_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[bool]:
+    """
+    Given a token sequence, return pad_flags where pad_flags[i] is True iff tokens[i] == pad_token.
+    """
+    return [t == pad_token for t in tokens]
+
+
 def _init_matrix(rows: int, cols: int, rng: random.Random, scheme: str) -> List[List[float]]:
     s = scheme.lower()
     if s == "zeros":

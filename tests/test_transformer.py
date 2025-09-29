@@ -232,6 +232,7 @@ class TestTransformerEncoder(unittest.TestCase):
              generate_causal_masks_from_lengths,
              generate_padding_mask_from_flags,
              generate_causal_padding_mask_from_flags,
+             build_flags_from_tokens,
          )
 
          # padding-only mask
@@ -264,6 +265,15 @@ class TestTransformerEncoder(unittest.TestCase):
          # causal+padding from flags
          mc_flags = generate_causal_padding_mask_from_flags(flags)
          self.assertEqual(mc_flags, mc)
+
+         # build flags from tokens
+         tokens = ["a", "b", "<pad>", "<pad>"]
+         flags_from_tokens = build_flags_from_tokens(tokens)
+         self.assertEqual(flags_from_tokens, [False, False, True, True])
+         # custom pad token
+         tokens2 = ["a", "b", "<x>", "<x>"]
+         flags2 = build_flags_from_tokens(tokens2, pad_token="<x>")
+         self.assertEqual(flags2, [False, False, True, True])
 
          # lengths helper
          masks = generate_causal_masks_from_lengths([0, 2, 3])

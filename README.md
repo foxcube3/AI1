@@ -322,6 +322,9 @@ Per-position layer normalization. Callable on sequences X: List[List[float]] wit
 #### generate_causal_padding_mask_from_flags(pad_flags: Sequence[bool]) -> List[List[float]]
 - Same as above but enforces causal constraint (j <= i).
 
+#### build_flags_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[bool]
+- Returns a per-token boolean list where True marks padding tokens.
+
 #### generate_causal_masks_from_lengths(lengths: Sequence[int]) -> List[List[List[float]]]
 - Convenience to create a batch of [L x L] causal+padding masks where L = max(lengths).
 
