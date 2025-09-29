@@ -31,3 +31,7 @@ jobs:
       - name: Run unit tests
         run: |
           python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Smoke test train_and_embed pipeline
+        run: |
+          python examples/train_and_embed.py --corpus allen.txt --vocab_size 200 --min_frequency 2 --output_prefix ci_bpe --dim 8 --text "Allen allows ample analysis"
