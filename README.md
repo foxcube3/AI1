@@ -189,6 +189,33 @@ Examples
 - Train + embed pipeline: examples/train_and_embed.py
   - python examples/train_and_embed.py --corpus allen.txt --vocab_size 1000 --min_frequency 2 --output_prefix bpe --dim 32 --text "Allen allows ample analysis"
 
+Masking utilities (quick snippet)
+```python
+from transformer_blocks import (
+    build_flags_from_tokens,
+    generate_padding_mask_from_flags,
+    make_causal_mask_from_tokens,
+)
+from bpe_tokenizer import BPETokenizer
+from embedding import EmbeddingLayer
+from transformer_blocks import TransformerEncoder
+
+# Prepare tokens and embeddings
+tok = BPETokenizer(); tok.load("bpe_merges.txt", "bpe_vocab.json")
+tokens = tok.encode("hello world <pad> <pad>")
+emb = EmbeddingLayer.from_vocab_file("bpe_vocab.json", dim=32, seed=42)
+X = emb.embed_tokens(tokens)
+
+# Build masks
+flags = build_flags_from_tokens(tokens, pad_token="<pad>")
+pad_mask = generate_padding_mask_from_flags(flags)             # padding-only
+causal_pad_mask = make_causal_mask_from_tokens(tokens)        # causal + padding
+
+# Run encoder with a mask
+enc = TransformerEncoder(num_layers=2, dim=32, num_heads=4, ff_hidden=64, seed=123)
+Y = enc(X, mask=causal_pad_mask)
+```
+
 <a id="api-reference"></a>
 API Reference
 
