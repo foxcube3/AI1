@@ -2,6 +2,7 @@ import argparse
 import json
 import math
 import random
+import sys
 from typing import List, Sequence
 
 from bpe_tokenizer import BPETokenizer
@@ -89,6 +90,22 @@ def main() -> None:
     parser.add_argument("--stop_token", type=str, default="", help="Optional token that stops generation, e.g., '<eos>'.")
     parser.add_argument("--system", type=str, default="", help="Optional system prompt that prefixes the conversation.")
     parser.add_argument("--greedy", action="store_true", help="Use greedy decoding instead of sampling.")
+    parser.add_argument(
+        "--stdin",
+        action="store_true",
+        help="Force non-interactive mode: read a single line from stdin (no prompt) and exit after one turn.",
+    )
+    parser.add_argument(
+        "--single_turn",
+        action="store_true",
+        help="Run exactly one turn and exit. Uses --prompt if provided; otherwise reads one line from stdin (or prompts if interactive).",
+    )
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default="",
+        help="User message to use with --single_turn. If empty, input is read from stdin (or prompted if interactive).",
+    )
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
@@ -237,11 +254,46 @@ def main() -> None:
 
     print("Chatbot ready. Type your message and press Enter. Ctrl+C to exit.")
     stop_tok = args.stop_token.strip() or None
+    interactive = sys.stdin.isatty()
+    if args.stdin:
+        interactive = False
+
+    # Single-turn mode using --prompt when provided; otherwise stdin or prompt if interactive.
+    if args.single_turn:
+        if args.prompt.strip():
+            user = args.prompt.strip()
+        else:
+            if interactive:
+                user = input("You: ").strip()
+            else:
+                line = sys.stdin.readline()
+                if not line:
+                    return
+                user = line.strip()
+        reply = bot.chat_once(
+            history=history,
+            user_message=user,
+            max_new_tokens=args.max_new_tokens,
+            temperature=args.temperature,
+            top_k=args.top_k,
+            stop_token=stop_tok,
+            greedy=args.greedy,
+        )
+        print(f"Assistant: {reply}")
+        return
+
     try:
         while True:
-            user = input("You: ").strip()
-            if not user:
-                continue
+            if interactive:
+                user = input("You: ").strip()
+            else:
+                # Non-interactive mode (e.g., piped stdin). Read one line without a prompt.
+                line = sys.stdin.readline()
+                if not line:
+                    break  # EOF
+                user = line.strip()
+                if not user:
+                    continue
             reply = bot.chat_once(
                 history=history,
                 user_message=user,
@@ -254,8 +306,11 @@ def main() -> None:
             print(f"Assistant: {reply}")
             history.append(f"User: {user}")
             history.append(f"Assistant: {reply}")
-    except KeyboardInterrupt:
-        print("\nExiting.")
+            if not interactive:
+                break  # single-turn behavior for piped stdin
+    except (KeyboardInterrupt, EOFError):
+        if interactive:
+            print("\nExiting.")
 
 
 if __name__ == "__main__":

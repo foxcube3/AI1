@@ -1,5 +1,5 @@
 BPE Tokenizer (Byte-Pair Encoding) + Embedding Layer
-[![CI](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml) [![Manual Terminal](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml) [![Manual CI](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml) [![PyPI](https://img.shields.io/pypi/v/bpe-tokenizer-embedding.svg)](https://pypi.org/project/bpe-tokenizer-embedding/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml) [![Manual Terminal](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml) [![Manual CI](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml/badge.svg)](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml) [![PyPI](https://img.shields.io/pypi/v/bpe-tokenizer-embedding.svg)](https://pypi.org/project/bpe-tokenizer-embedding/) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE) [![Single-turn Chatbot](https://img.shields.io/badge/Chatbot-single--turn-blue)](#single-turn-chatbot) [![Manual Terminal Examples](https://img.shields.io/badge/CI-manual%20terminal%20examples-blue)](#ci-manual-terminal-examples)
 
 Table of Contents
 - [Overview](#overview)
@@ -10,6 +10,7 @@ Table of Contents
 - [Examples](#examples)
   - [Post-processing (inference) — quick reference](#post-processing-inference-quick-reference)
   - [Chatbot usage](#chatbot-usage)
+  - [Single-turn chatbot quick runs](#single-turn-chatbot)
 - [Simple training (next-token head)](#simple-training-next-token-head)
 - [API Reference](#api-reference)
   - [BPETokenizer](#bpetokenizer)
@@ -221,6 +222,19 @@ Chatbot usage
   - Add a system prompt:
     - python examples/chatbot.py --head head.json --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --add_pe --system "You are a helpful assistant." --max_new_tokens 48
 
+Non-interactive/single-turn modes for train-then-chatbot
+- examples/train_then_chatbot.py now supports running a clean, single-turn interaction without interleaved prompts:
+  - --stdin: force non-interactive mode and read exactly one line from stdin (no "You:" prompt), then exit.
+  - --single_turn: run exactly one turn and exit.
+  - --prompt "TEXT": when used with --single_turn, provide the user message directly. If omitted, reads one line from stdin (or prompts once if interactive).
+- Examples:
+  - Single turn via explicit prompt:
+    - python examples/train_then_chatbot.py --single_turn --prompt "Hello there" --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+  - Single turn via stdin (no prompt printed):
+    - echo "Hello there" | python examples/train_then_chatbot.py --single_turn --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+  - Force non-interactive stdin mode:
+    - echo "Hello there" | python examples/train_then_chatbot.py --stdin --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+
 Masking utilities (quick snippet)
 ```python
 from transformer_blocks import (
@@ -278,6 +292,16 @@ End-to-end (train then infer):
 - Single command to train and immediately run inference:
   - python examples/train_then_infer.py --corpus allen.txt --prompt "Allen allows" --merges bpe_merges.txt --vocab bpe_vocab.json --dim 32 --layers 2 --heads 4 --ff 64 --seq_len 32 --epochs 3 --adam --add_pe --top_k 10 --save_head head.json
 
+<a id="single-turn-chatbot"></a>
+Single-turn chatbot quick runs (clean output)
+- Train head then answer one message without printing "You:" or extra lines:
+  - Using explicit prompt:
+    - python examples/train_then_chatbot.py --single_turn --prompt "Hello there" --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+  - Read one line from stdin (no prompt printed):
+    - echo "Hello there" | python examples/train_then_chatbot.py --single_turn --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+  - Force stdin mode:
+    - echo "Hello there" | python examples/train_then_chatbot.py --stdin --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+
 <a id="post-processing-inference-quick-reference"></a>
 Post-processing (inference) — quick reference
 - These options modify the next-token probability distribution produced during inference:
@@ -324,6 +348,7 @@ CI
   - Builds wheels/sdist and uploads artifacts
   - Optional publish on tagged builds
 
+<a id="ci-manual-terminal-examples"></a>
 Manual, built-in terminal (on-demand)
 - Two additional workflows you can trigger from the Actions tab:
   1) Manual Terminal — arbitrary command runner
@@ -337,6 +362,10 @@ Manual, built-in terminal (on-demand)
      - Examples:
        - cmd: python -m pytest -q
        - cmd: python examples/train_then_chatbot.py --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 16 --stride 16 --epochs 1 --lr 0.01 --add_pe --save_head head.json --max_new_tokens 16 --temperature 0.9 --top_k 10 --system "You are a helpful assistant." --greedy
+       - Clean single-turn chatbot with prompt:
+         - cmd: python examples/train_then_chatbot.py --single_turn --prompt "Hello from CI" --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
+       - Clean single-turn chatbot via stdin (no prompt):
+         - cmd: echo "Hello from CI" \| python examples/train_then_chatbot.py --single_turn --corpus allen.txt --merges bpe_merges.txt --vocab bpe_vocab.json --dim 16 --layers 1 --heads 2 --ff 32 --seq_len 8 --stride 8 --epochs 1 --lr 0.02 --add_pe --save_head head.json --max_new_tokens 8 --temperature 0.9 --top_k 5
   2) Manual CI (Tests + Chatbot) — curated pipeline on demand
      - File: .github/workflows/manual-ci.yml
      - Inputs:
@@ -355,6 +384,3 @@ Quick links
 - Default CI: [python-tests.yml](https://github.com/foxcube3/AI1/actions/workflows/python-tests.yml)
 - Manual Terminal: [manual-terminal.yml](https://github.com/foxcube3/AI1/actions/workflows/manual-terminal.yml)
 - Manual CI: [manual-ci.yml](https://github.com/foxcube3/AI1/actions/workflows/manual-ci.yml)
-  - Token names must match entries in the vocab file used by the embedding layer.
-  - Unknown tokens map to the <unk> id; banning <unk> is allowed.
-  - Renormalization occurs only if total remaining mass > 0; otherwise the raw distribution is returned unchanged.
