@@ -2,6 +2,7 @@ import argparse
 import json
 import math
 import random
+import sys
 from typing import List, Sequence
 
 from bpe_tokenizer import BPETokenizer
@@ -236,6 +237,36 @@ def main() -> None:
         history.append(f"System: {args.system.strip()}")
 
     print("Chatbot ready. Type your message and press Enter. Ctrl+C to exit.")
+    stop_tok = args.stop_token.strip() or None
+    interactive = sys.stdin.isatty()
+    try:
+        while True:
+            if interactive:
+                user = input("You: ").strip()
+            else:
+                # Non-interactive mode (e.g., piped stdin). Read one line without a prompt.
+                line = sys.stdin.readline()
+                if not line:
+                    break  # EOF
+                user = line.strip()
+                if not user:
+                    continue
+            reply = bot.chat_once(
+                history=history,
+                user_message=user,
+                max_new_tokens=args.max_new_tokens,
+                temperature=args.temperature,
+                top_k=args.top_k,
+                stop_token=stop_tok,
+                greedy=args.greedy,
+            )
+            print(f"Assistant: {reply}")
+            history.append(f"User: {user}")
+            history.append(f"Assistant: {reply}")
+            if not interactive:
+                break  # single-turn behavior for piped stdin
+    except (KeyboardInterrupt, EOFError):
+        print("\nExiting due to interrupt/EOF.")
     stop_tok = args.stop_token.strip() or None
     try:
         while True:
