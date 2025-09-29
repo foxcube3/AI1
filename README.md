@@ -25,6 +25,13 @@ Table of Contents
     - [embed_batch](#embeddinglayer-embed-batch)
     - [save_weights](#embeddinglayer-save-weights)
     - [load_weights](#embeddinglayer-load-weights)
+  - [SinusoidalPositionalEncoding](#sinusoidalpositionalencoding)
+    - [encode](#sinusoidalpositionalencoding-encode)
+    - [add_to](#sinusoidalpositionalencoding-add-to)
+  - [LearnedPositionalEmbedding](#learnedpositionalembedding)
+    - [__init__](#learnedpositionalembedding-init)
+    - [encode](#learnedpositionalembedding-encode)
+    - [add_to](#learnedpositionalembedding-add-to)
 - [Development](#development)
 - [CI](#ci)
 - [License](#license)
@@ -33,6 +40,7 @@ Table of Contents
 Overview
 - A simple, self-contained BPE subword tokenizer implemented in Python.
 - A dependency-free EmbeddingLayer that is directly compatible with the tokenizer’s output (list of string tokens).
+- Sinusoidal positional encodings for sequence modeling.
 - Includes examples, tests, linting, and packaging via pyproject.toml.
 
 <a id="features"></a>
@@ -46,8 +54,12 @@ Features
   - Handles OOV tokens via a dedicated <unk> index without mutating the saved vocab.
   - Save/load embedding weights to JSON.
   - No external dependencies.
+- Positional Encoding
+  - SinusoidalPositionalEncoding (Transformer-style).
+  - LearnedPositionalEmbedding (trainable table up to a max length).
+  - Generate PE matrices and add to embeddings without external deps.
 - Tooling
-  - Unit tests for both tokenizer and embedding.
+  - Unit tests for tokenizer, embedding, and positional encoding.
   - Ruff and Flake8 linting configured via pyproject.toml.
   - GitHub Actions CI: lint, unit tests, smoke E2E pipeline, build wheels/sdist, optional publish on tag.
 
@@ -55,13 +67,17 @@ Features
 Repository contents
 - bpe_tokenizer.py — BPETokenizer class (train, encode, save/load).
 - embedding.py — EmbeddingLayer (tokens/ids/embeddings, save/load weights).
+- positional_encoding.py — Sinusoidal positional encoding utilities.
 - train_bpe.py — CLI to train and save merges and vocab.
 - allen.txt — Example corpus to get started immediately.
 - examples/example_encode.py — Load a trained tokenizer and encode text.
 - examples/example_embed.py — Load tokenizer + vocab, build embedding layer, and embed text.
+- examples/example_embed_with_pe.py — Embed text and add sinusoidal positional encodings.
+- examples/example_embed_with_learned_pe.py — Embed text and add learned positional embeddings.
 - examples/train_and_embed.py — One-shot pipeline: train BPE then embed text.
 - tests/test_bpe.py — Unit tests for BPETokenizer.
 - tests/test_embedding.py — Unit tests for EmbeddingLayer.
+- tests/test_positional.py — Unit tests for positional encoding.
 - pyproject.toml — Packaging metadata and lint configuration (ruff + flake8).
 - .github/workflows/python-tests.yml — CI workflow.
 
@@ -102,6 +118,11 @@ Programmatic usage
   - emb = EmbeddingLayer.from_vocab_file("bpe_vocab.json", dim=64, seed=42)
   - ids = emb.tokens_to_ids(tokens)
   - vectors = emb.embed_tokens(tokens)
+- Positional Encoding
+  - from positional_encoding import SinusoidalPositionalEncoding
+  - pe = SinusoidalPositionalEncoding(dim=64)
+  - pe_vectors = pe.encode(len(vectors), offset=0)
+  - vectors_with_pe = pe.add_to(vectors)
 
 Notes
 - End-of-word marker </w> is used internally during training/encoding to avoid merges across word boundaries; it’s not exposed in the final tokens.
@@ -139,6 +160,10 @@ Examples
   - python examples/example_encode.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "This is a sample sentence."
 - Embedding example: examples/example_embed.py
   - python examples/example_embed.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32
+- Embedding + Sinusoidal Positional Encoding: examples/example_embed_with_pe.py
+  - python examples/example_embed_with_pe.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32
+- Embedding + Learned Positional Embedding: examples/example_embed_with_learned_pe.py
+  - python examples/example_embed_with_learned_pe.py --merges bpe_merges.txt --vocab bpe_vocab.json --text "Allen allows ample analysis" --dim 32 --max_len 512
 - Train + embed pipeline: examples/train_and_embed.py
   - python examples/train_and_embed.py --corpus allen.txt --vocab_size 1000 --min_frequency 2 --output_prefix bpe --dim 32 --text "Allen allows ample analysis"
 
@@ -206,6 +231,38 @@ Save weights and minimal metadata to JSON.
 <a id="embeddinglayer-load-weights"></a>
 #### load_weights(path: str) -> None
 Load weights and metadata from JSON.
+
+<a id="sinusoidalpositionalencoding"></a>
+### SinusoidalPositionalEncoding (positional_encoding.py)
+
+<a id="sinusoidalpositionalencoding-encode"></a>
+#### encode(length: int, offset: int = 0) -> List[List[float]]
+Create a [length x dim] positional encoding matrix starting at the given offset.
+
+<a id="sinusoidalpositionalencoding-add-to"></a>
+#### add_to(embeddings: Sequence[Sequence[float]], offset: int = 0) -> List[List[float]]
+Element-wise add positional encodings to an embedding sequence. Returns a new list.
+
+<a id="learnedpositionalembedding"></a>
+### LearnedPositionalEmbedding (positional_encoding.py)
+
+<a id="learnedpositionalembedding-init"></a>
+#### __init__(dim: int, max_len: int, init: str = "xavier_uniform", seed: Optional[int] = None)
+Create a trainable positional embedding table of shape [max_len x dim]. Init schemes: zeros, uniform, xavier_uniform.
+
+<a id="learnedpositionalembedding-encode"></a>
+#### encode(length: int, offset: int = 0) -> List[List[float]]
+Return a [length x dim] slice starting from position `offset`. Raises if offset+length > max_len.
+
+<a id="learnedpositionalembedding-add-to"></a>
+#### add_to(embeddings: Sequence[Sequence[float]], offset: int = 0) -> List[List[float]]
+Element-wise add learned positional embeddings to an embedding sequence. Returns a new list.
+
+#### save_weights(path: str) -> None
+Save learned positional weights and metadata (dim, max_len) to JSON.
+
+#### load_weights(path: str) -> None
+Load learned positional weights and metadata from JSON.
 
 <a id="license"></a>
 License
