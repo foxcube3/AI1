@@ -367,70 +367,149 @@ API Reference — Inference Post-processing
 
 <a id="transformer-blocks"></a>
 API Reference — Transformer Blocks
-- All blocks are implemented with pure-Python list-based linear algebra (no external dependencies). Shapes use [seq_len x dim] for sequences.
+- Pure-Python list-based linear algebra (no external dependencies). Sequences are [seq_len x dim].
+
+Type signatures (Python-style):
+```python
+from typing import List, Optional, Sequence
+
+class LayerNorm:
+    def __init__(self, dim: int, eps: float = 1e-5) -> None: ...
+    def __call__(self, X: Sequence[Sequence[float]]) -> List[List[float]]: ...
+
+class MultiHeadSelfAttention:
+    def __init__(self, dim: int, num_heads: int,
+                 *, seed: Optional[int] = None, init: str = "xavier_uniform") -> None: ...
+    def __call__(self, X: Sequence[Sequence[float]],
+                 mask: Optional[Sequence[Sequence[float]]] = None) -> List[List[float]]: ...
+
+class PositionwiseFeedForward:
+    def __init__(self, dim: int, hidden_dim: int,
+                 *, activation: str = "relu", seed: Optional[int] = None, init: str = "xavier_uniform") -> None: ...
+    def __call__(self, X: Sequence[Sequence[float]]) -> List[List[float]]: ...
+
+class TransformerEncoderLayer:
+    def __init__(self, dim: int, num_heads: int, ff_hidden: int,
+                 *, seed: Optional[int] = None, init: str = "xavier_uniform") -> None: ...
+    def __call__(self, X: Sequence[Sequence[float]],
+                 mask: Optional[Sequence[Sequence[float]]] = None) -> List[List[float]]: ...
+
+class TransformerEncoder:
+    def __init__(self, num_layers: int, dim: int, num_heads: int, ff_hidden: int,
+                 *, seed: Optional[int] = None, init: str = "xavier_uniform") -> None: ...
+    def __call__(self, X: Sequence[Sequence[float]],
+                 mask: Optional[Sequence[Sequence[float]]] = None) -> List[List[float]]: ...
+
+def generate_causal_mask(seq_len: int) -> List[List[float]]: ...
+def generate_padding_mask(seq_len: int, valid_len: int) -> List[List[float]]: ...
+def generate_causal_padding_mask(seq_len: int, valid_len: int) -> List[List[float]]: ...
+def generate_causal_masks_from_lengths(lengths: Sequence[int]) -> List[List[List[float]]]: ...
+def generate_padding_mask_from_flags(pad_flags: Sequence[bool]) -> List[List[float]]: ...
+def generate_causal_padding_mask_from_flags(pad_flags: Sequence[bool]) -> List[List[float]]: ...
+def build_flags_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[bool]: ...
+def make_causal_mask_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[List[float]]: ...
+def make_padding_mask_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[List[float]]: ...
+```
 
 <a id="layernorm"></a>
 LayerNorm
-- Class: transformer_blocks.LayerNorm(dim: int, eps: float = 1e-5)
 - Purpose: Per-position layer normalization.
-- Call: ln(X) where X is [seq_len x dim]
 - Behavior:
   - y = (x - mean) / sqrt(var + eps) * gamma + beta
   - Deterministic fallback for near-constant vectors to avoid division by zero.
+- Minimal example:
+```python
+from transformer_blocks import LayerNorm
+
+ln = LayerNorm(dim=8)
+X = [[0.1 * (i + j) for j in range(8)] for i in range(4)]
+Y = ln(X)  # shape [4 x 8]
+```
 
 <a id="multiheadselfattention"></a>
 MultiHeadSelfAttention
-- Class: transformer_blocks.MultiHeadSelfAttention(dim: int, num_heads: int, seed: Optional[int] = None, init: str = "xavier_uniform")
 - Purpose: Scaled dot-product attention with multi-head splitting.
-- Call: mha(X, mask=None) where X is [seq_len x dim]; mask is [seq_len x seq_len] with <=0 disallowed.
 - Notes:
   - dim must be divisible by num_heads.
-  - Uses four parameter matrices W_q, W_k, W_v, W_o plus biases.
-  - Deterministic initialization with seed.
+  - Uses W_q, W_k, W_v, W_o plus biases.
+- Minimal example:
+```python
+from transformer_blocks import MultiHeadSelfAttention, generate_causal_mask
+
+mha = MultiHeadSelfAttention(dim=16, num_heads=4, seed=42)
+X = [[0.01 * (i + j) for j in range(16)] for i in range(6)]
+mask = generate_causal_mask(len(X))  # optional
+Y = mha(X, mask=mask)  # shape [6 x 16]
+```
 
 <a id="positionwisefeedforward"></a>
 PositionwiseFeedForward
-- Class: transformer_blocks.PositionwiseFeedForward(dim: int, hidden_dim: int, activation: str = "relu", seed: Optional[int] = None, init: str = "xavier_uniform")
 - Purpose: Two-layer MLP with ReLU applied position-wise.
-- Call: ffn(X) where X is [seq_len x dim]
-- Behavior: Y = W2 * ReLU(W1 * X + b1) + b2
+- Minimal example:
+```python
+from transformer_blocks import PositionwiseFeedForward
+
+ffn = PositionwiseFeedForward(dim=16, hidden_dim=64, seed=1)
+X = [[0.02 * (i + j) for j in range(16)] for i in range(5)]
+Y = ffn(X)  # shape [5 x 16]
+```
 
 <a id="transformerencoderlayer"></a>
 TransformerEncoderLayer
-- Class: transformer_blocks.TransformerEncoderLayer(dim: int, num_heads: int, ff_hidden: int, seed: Optional[int] = None, init: str = "xavier_uniform")
-- Architecture: Pre-norm residual blocks
+- Architecture (pre-norm residual):
   - x = x + MHA(LN1(x))
   - x = x + FFN(LN2(x))
-- Call: layer(X, mask=None) where X is [seq_len x dim]
+- Minimal example:
+```python
+from transformer_blocks import TransformerEncoderLayer, generate_causal_mask
+
+layer = TransformerEncoderLayer(dim=32, num_heads=4, ff_hidden=64, seed=123)
+X = [[0.01 * (i + j) for j in range(32)] for i in range(10)]
+mask = generate_causal_mask(len(X))
+Y = layer(X, mask=mask)  # shape [10 x 32]
+```
 
 <a id="transformerencoder"></a>
 TransformerEncoder
-- Class: transformer_blocks.TransformerEncoder(num_layers: int, dim: int, num_heads: int, ff_hidden: int, seed: Optional[int] = None, init: str = "xavier_uniform")
-- Purpose: Stack of TransformerEncoderLayer blocks.
-- Call: enc(X, mask=None) where X is [seq_len x dim]
-- Notes: Seeds are derived per-layer for deterministic construction.
+- Stack of TransformerEncoderLayer blocks with deterministic per-layer seeds.
+- Minimal example:
+```python
+from transformer_blocks import TransformerEncoder, generate_causal_mask
+
+enc = TransformerEncoder(num_layers=3, dim=32, num_heads=4, ff_hidden=64, seed=7)
+X = [[0.01 * (i + j) for j in range(32)] for i in range(12)]
+mask = generate_causal_mask(len(X))
+Y = enc(X, mask=mask)  # shape [12 x 32]
+```
 
 <a id="mask-utilities"></a>
 Mask utilities
-- Functions:
-  - generate_causal_mask(seq_len: int) -> [L x L]
-    - Lower-triangular (j <= i) 1.0 allowed, 0.0 masked.
-  - generate_padding_mask(seq_len: int, valid_len: int) -> [L x L]
-    - Positions >= valid_len are masked.
-  - generate_causal_padding_mask(seq_len: int, valid_len: int) -> [L x L]
-    - Causal + padding combined.
-  - generate_causal_masks_from_lengths(lengths: Sequence[int]) -> List[[L x L]]
-    - For a batch of lengths; L = max(lengths).
-  - generate_padding_mask_from_flags(pad_flags: Sequence[bool]) -> [L x L]
-    - True indicates padding.
-  - generate_causal_padding_mask_from_flags(pad_flags: Sequence[bool]) -> [L x L]
-    - Causal + padding from per-token flags.
-  - build_flags_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> List[bool]
-    - True for tokens equal to pad_token.
-  - make_causal_mask_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> [L x L]
-    - Convenience wrapper using build_flags_from_tokens.
-  - make_padding_mask_from_tokens(tokens: Sequence[str], pad_token: str = "<pad>") -> [L x L]
-    - Convenience wrapper using build_flags_from_tokens.
+- Quick examples:
+```python
+from transformer_blocks import (
+    generate_causal_mask,
+    generate_padding_mask,
+    generate_causal_padding_mask,
+    build_flags_from_tokens,
+    generate_padding_mask_from_flags,
+    generate_causal_padding_mask_from_flags,
+    make_causal_mask_from_tokens,
+    make_padding_mask_from_tokens,
+)
+
+L = 5
+causal = generate_causal_mask(L)
+padding = generate_padding_mask(seq_len=L, valid_len=3)
+causal_pad = generate_causal_padding_mask(seq_len=L, valid_len=3)
+
+tokens = ["hello", "world", "<pad>", "<pad>", "<pad>"]
+flags = build_flags_from_tokens(tokens)  # [False, False, True, True, True]
+pad_mask = generate_padding_mask_from_flags(flags)
+causal_pad_mask = generate_causal_padding_mask_from_flags(flags)
+
+causal_pad_from_tokens = make_causal_mask_from_tokens(tokens)
+pad_from_tokens = make_padding_mask_from_tokens(tokens)
+```
 
 <a id="development"></a>
 Development
