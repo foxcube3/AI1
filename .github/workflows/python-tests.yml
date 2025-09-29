@@ -46,6 +46,10 @@ jobs:
         run: |
           python examples/train_and_embed.py --corpus allen.txt --vocab_size 200 --min_frequency 2 --output_prefix ci_bpe --dim 8 --text "Allen allows ample analysis"
 
+      - name: Smoke test learned positional embedding persistence
+        run: |
+          python examples/example_learned_pe_persist.py --merges ci_bpe_merges.txt --vocab ci_bpe_vocab.json --text "Allen allows ample analysis" --dim 8 --max_len 64 --pe_out ci_learned_pe.json
+
       - name: Build distributions
         run: |
           python -m build
