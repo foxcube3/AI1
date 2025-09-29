@@ -511,6 +511,82 @@ causal_pad_from_tokens = make_causal_mask_from_tokens(tokens)
 pad_from_tokens = make_padding_mask_from_tokens(tokens)
 ```
 
+<a id="end-to-end-encoder"></a>
+End-to-end quick start: Tokenizer + Embedding + Encoder
+- Minimal runnable snippet to go from raw text to encoder outputs.
+```python
+from bpe_tokenizer import BPETokenizer
+from embedding import EmbeddingLayer
+from positional_encoding import SinusoidalPositionalEncoding
+from transformer_blocks import TransformerEncoder, make_causal_mask_from_tokens
+
+# Load trained tokenizer (use your paths)
+tok = BPETokenizer(); tok.load("bpe_merges.txt", "bpe_vocab.json")
+
+# Encode text and build embeddings
+text = "Allen allows ample analysis"
+tokens = tok.encode(text)
+emb = EmbeddingLayer.from_vocab_file("bpe_vocab.json", dim=32, seed=42)
+X = emb.embed_tokens(tokens)
+
+# Optional sinusoidal positional encoding
+pe = SinusoidalPositionalEncoding(dim=32)
+X_pe = pe.add_to(X)
+
+# Build a simple encoder and a causal+padding mask directly from tokens
+enc = TransformerEncoder(num_layers=2, dim=32, num_heads=4, ff_hidden=64, seed=123)
+mask = make_causal_mask_from_tokens(tokens)  # '<pad>' tokens will be masked if present
+
+# Forward pass
+Y = enc(X_pe, mask=mask)
+print("Encoder output shape:", len(Y), "x", len(Y[0]))
+```
+
+<a id="pe-in-encoder"></a>
+Using positional encodings in the encoder
+- Sinusoidal vs learned positional encodings.
+
+Sinusoidal positional encoding:
+```python
+from positional_encoding import SinusoidalPositionalEncoding
+from transformer_blocks import TransformerEncoder
+
+# Assume X is [seq_len x dim] embeddings
+dim = 64
+pe = SinusoidalPositionalEncoding(dim=dim)
+X_with_pe = pe.add_to(X)  # offset=0 by default
+
+enc = TransformerEncoder(num_layers=3, dim=dim, num_heads=8, ff_hidden=256, seed=7)
+Y = enc(X_with_pe)  # optionally pass a mask
+```
+
+Learned positional embedding:
+```python
+from positional_encoding import LearnedPositionalEmbedding
+from transformer_blocks import TransformerEncoder
+
+# Assume X is [seq_len x dim] embeddings
+dim = 64
+seq_len = len(X)
+lpe = LearnedPositionalEmbedding(dim=dim, max_len=512, seed=1, init="xavier_uniform")
+X_with_lpe = lpe.add_to(X, offset=0)  # raises if seq_len exceeds max_len
+
+enc = TransformerEncoder(num_layers=3, dim=dim, num_heads=8, ff_hidden=256, seed=7)
+Y = enc(X_with_lpe)
+```
+
+Persisting and reloading learned positional embedding:
+```python
+from positional_encoding import LearnedPositionalEmbedding
+
+lpe = LearnedPositionalEmbedding(dim=64, max_len=512, seed=1)
+lpe.save_weights("learned_pe.json")
+
+lpe2 = LearnedPositionalEmbedding(dim=1, max_len=1)  # dummy; will be overwritten
+lpe2.load_weights("learned_pe.json")
+assert lpe2.dim == 64 and lpe2.max_len == 512
+```
+
 <a id="development"></a>
 Development
 - Create and activate a virtual environment (recommended).
