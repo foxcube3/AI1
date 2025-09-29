@@ -95,6 +95,17 @@ def main() -> None:
         action="store_true",
         help="Force non-interactive mode: read a single line from stdin (no prompt) and exit after one turn.",
     )
+    parser.add_argument(
+        "--single_turn",
+        action="store_true",
+        help="Run exactly one turn and exit. Uses --prompt if provided; otherwise reads one line from stdin (or prompts if interactive).",
+    )
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default="",
+        help="User message to use with --single_turn. If empty, input is read from stdin (or prompted if interactive).",
+    )
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
@@ -246,6 +257,31 @@ def main() -> None:
     interactive = sys.stdin.isatty()
     if args.stdin:
         interactive = False
+
+    # Single-turn mode using --prompt when provided; otherwise stdin or prompt if interactive.
+    if args.single_turn:
+        if args.prompt.strip():
+            user = args.prompt.strip()
+        else:
+            if interactive:
+                user = input("You: ").strip()
+            else:
+                line = sys.stdin.readline()
+                if not line:
+                    return
+                user = line.strip()
+        reply = bot.chat_once(
+            history=history,
+            user_message=user,
+            max_new_tokens=args.max_new_tokens,
+            temperature=args.temperature,
+            top_k=args.top_k,
+            stop_token=stop_tok,
+            greedy=args.greedy,
+        )
+        print(f"Assistant: {reply}")
+        return
+
     try:
         while True:
             if interactive:
